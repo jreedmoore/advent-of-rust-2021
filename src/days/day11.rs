@@ -117,8 +117,8 @@ pub fn step_cave(input: &str, steps : usize) -> Option<u32> {
   return Some(cave.flashes.clone());
 }
 
-pub fn step_until_synchronized(cave : &mut puzzle::Cave) -> u16 {
-  let mut n : u16 = 0;
+pub fn step_until_synchronized(cave : &mut puzzle::Cave) -> u32 {
+  let mut n : u32 = 0;
   loop {
     cave.step();
     n += 1;
@@ -133,7 +133,7 @@ pub fn part_one(input: &str) -> Option<u32> {
   step_cave(input, 100)
 }
 
-pub fn part_two(input: &str) -> Option<u16> {
+pub fn part_two(input: &str) -> Option<u32> {
   Some(step_until_synchronized(&mut puzzle::parse_input(input)?))
 }
 
