@@ -1,14 +1,11 @@
 mod days;
 use days::*;
 
-fn main() {
-    println!("{}", day11::part_one().unwrap());
-}
+use std::{fs, str};
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_foo() {
-        assert!(true)
-    }
+
+fn main() {
+    let bytes = fs::read("day11.txt").unwrap();
+    let s = str::from_utf8(&bytes).unwrap();
+    println!("{}", day11::part_one(s).unwrap());
 }
