@@ -71,6 +71,10 @@ mod puzzle {
       }
     }
 
+    pub fn all_zero(&self) -> bool {
+      self.octopi.iter().all(|o| o.energy == 0)
+    }
+
     pub fn pretty_print(&mut self) -> String {
       (0..self.height()).map(|row| { 
         (0..self.width).map(|col| {
@@ -113,30 +117,50 @@ pub fn step_cave(input: &str, steps : usize) -> Option<u32> {
   return Some(cave.flashes.clone());
 }
 
+pub fn step_until_synchronized(cave : &mut puzzle::Cave) -> u16 {
+  let mut n : u16 = 0;
+  loop {
+    cave.step();
+    n += 1;
+    if cave.all_zero() {
+      break;
+    }
+  }
+  n
+}
+
 pub fn part_one(input: &str) -> Option<u32> {
   step_cave(input, 100)
+}
+
+pub fn part_two(input: &str) -> Option<u16> {
+  Some(step_until_synchronized(&mut puzzle::parse_input(input)?))
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
 
+  const full_example : &'static str = r#"
+    5483143223
+    2745854711
+    5264556173
+    6141336146
+    6357385478
+    4167524645
+    2176841721
+    6882881134
+    4846848554
+    5283751526
+  "#;
   #[test]
   fn test_part_one_example() {
-    let example = r#"
-      5483143223
-      2745854711
-      5264556173
-      6141336146
-      6357385478
-      4167524645
-      2176841721
-      6882881134
-      4846848554
-      5283751526
-    "#;
+    assert_eq!(part_one(full_example), Some(1656));
+  }
 
-    assert_eq!(part_one(example), Some(1656));
+  #[test]
+  fn test_part_two_example() {
+    assert_eq!(part_two(full_example), Some(195));
   }
 
   #[test]
