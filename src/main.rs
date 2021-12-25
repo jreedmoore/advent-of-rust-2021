@@ -1,3 +1,4 @@
+#![feature(hash_drain_filter)]
 mod days;
 use days::*;
 
@@ -10,7 +11,6 @@ struct Program<'a> {
     pub entry: fn(&'a str) -> Option<u32>
 }
 
-
 fn main() {
     let args: Vec<String> = env::args().collect();
     let programs : Vec<Program> = vec![
@@ -18,6 +18,8 @@ fn main() {
     ,   Program{name: "day11-2", input: "day11.txt", entry: day11::part_two}
     ,   Program{name: "day12-1", input: "day12.txt", entry: day12::part_one}
     ,   Program{name: "day12-2", input: "day12.txt", entry: day12::part_two}
+    ,   Program{name: "day13-1", input: "day13.txt", entry: day13::part_one}
+    ,   Program{name: "day13-2", input: "day13.txt", entry: day13::part_two}
     ];
 
     let program = programs.iter().find(|prog| prog.name == args[1]).unwrap();
