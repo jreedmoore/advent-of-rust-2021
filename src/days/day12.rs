@@ -81,9 +81,9 @@ mod puzzle {
     connections : Vec<Connection>
   }
   impl CaveSystem {
-    pub fn valid_paths_count<F : Fn(&Path, &CaveType) -> bool>(&self, f : F) -> u32 {
+    pub fn valid_paths_count<F : Fn(&Path, &CaveType) -> bool>(&self, f : F) -> u64 {
       let mut unfinished : Vec<Path> = vec![Path::start()];
-      let mut finished : u32 = 0;
+      let mut finished : u64 = 0;
       while let Some(path) = unfinished.pop() {
         let last = path.caves.last().unwrap();
         self.next_caves(last).iter()
@@ -140,13 +140,13 @@ mod puzzle {
     }
   }
 }
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<u64> {
   let system = puzzle::parse_input(input)?;
   let paths = system.valid_paths_count(|path: &puzzle::Path, v| path.entries(v) < 1);
   Some(paths)
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<u64> {
   let system = puzzle::parse_input(input)?;
   let paths = system.valid_paths_count(|path: &puzzle::Path, v| {
     if path.max_small_entries().unwrap_or(0) >= 2 {

@@ -8,7 +8,7 @@ use std::env;
 struct Program<'a> {
     pub name: &'a str,
     pub input: &'a str,
-    pub entry: fn(&'a str) -> Option<u32>
+    pub entry: fn(&'a str) -> Option<u64>
 }
 
 fn main() {
@@ -21,6 +21,7 @@ fn main() {
     ,   Program{name: "day13-1", input: "day13.txt", entry: day13::part_one}
     ,   Program{name: "day13-2", input: "day13.txt", entry: day13::part_two}
     ,   Program{name: "day14-1", input: "day14.txt", entry: day14::part_one}
+    ,   Program{name: "day14-2", input: "day14.txt", entry: day14::part_two}
     ];
 
     let program = programs.iter().find(|prog| prog.name == args[1]).unwrap();

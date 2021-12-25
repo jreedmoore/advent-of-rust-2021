@@ -11,7 +11,7 @@ mod puzzle {
   pub struct Cave {
     octopi : Vec<Octopus>,
     pub width : u8, 
-    pub flashes : u32
+    pub flashes : u64
   }
   impl Cave {
     pub fn height(&self) -> u8 {
@@ -107,7 +107,7 @@ mod puzzle {
   }
 }
 
-pub fn step_cave(input: &str, steps : usize) -> Option<u32> {
+pub fn step_cave(input: &str, steps : usize) -> Option<u64> {
   let mut cave = puzzle::parse_input(input)?;
   //println!("staring config\n{}", cave.pretty_print());
   for n in 0..steps {
@@ -117,8 +117,8 @@ pub fn step_cave(input: &str, steps : usize) -> Option<u32> {
   return Some(cave.flashes.clone());
 }
 
-pub fn step_until_synchronized(cave : &mut puzzle::Cave) -> u32 {
-  let mut n : u32 = 0;
+pub fn step_until_synchronized(cave : &mut puzzle::Cave) -> u64 {
+  let mut n : u64 = 0;
   loop {
     cave.step();
     n += 1;
@@ -129,11 +129,11 @@ pub fn step_until_synchronized(cave : &mut puzzle::Cave) -> u32 {
   n
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<u64> {
   step_cave(input, 100)
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<u64> {
   Some(step_until_synchronized(&mut puzzle::parse_input(input)?))
 }
 

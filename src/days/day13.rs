@@ -51,8 +51,8 @@ mod puzzle {
       }
     }
 
-    pub fn count(&self) -> u32 {
-      self.points.len() as u32
+    pub fn count(&self) -> u64 {
+      self.points.len() as u64
     }
 
     pub fn pretty_print(&self) -> String {
@@ -118,7 +118,7 @@ mod puzzle {
   }
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<u64> {
   let (mut paper, directions) = puzzle::parse_input(input)?;
   for direction in directions.iter().take(1) {
     paper.fold(direction);
@@ -126,7 +126,7 @@ pub fn part_one(input: &str) -> Option<u32> {
   Some(paper.count())
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<u64> {
   let (mut paper, directions) = puzzle::parse_input(input)?;
   for direction in directions {
     paper.fold(&direction);
