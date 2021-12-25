@@ -20,6 +20,7 @@ fn main() {
     ,   Program{name: "day12-2", input: "day12.txt", entry: day12::part_two}
     ,   Program{name: "day13-1", input: "day13.txt", entry: day13::part_one}
     ,   Program{name: "day13-2", input: "day13.txt", entry: day13::part_two}
+    ,   Program{name: "day14-1", input: "day14.txt", entry: day14::part_one}
     ];
 
     let program = programs.iter().find(|prog| prog.name == args[1]).unwrap();
