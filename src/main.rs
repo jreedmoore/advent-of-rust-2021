@@ -4,6 +4,7 @@ use days::*;
 
 use std::{fs, str};
 use std::env;
+use std::time::{Duration, Instant};
 
 struct Program<'a> {
     pub name: &'a str,
@@ -28,5 +29,9 @@ fn main() {
     let bytes = fs::read(program.input).unwrap();
     let s = str::from_utf8(&bytes).unwrap();
     let f = program.entry;
-    println!("{}: {}", program.name, f(s).unwrap());
+    let start = Instant::now();
+    let answer = f(s);
+    let end = Instant::now();
+    let time = end.duration_since(start);
+    println!("{}: {:?}\ntook: {:?}", program.name, answer, time);
 }
