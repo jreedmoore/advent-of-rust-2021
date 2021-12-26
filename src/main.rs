@@ -4,7 +4,7 @@ use days::*;
 
 use std::{fs, str};
 use std::env;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 struct Program<'a> {
     pub name: &'a str,
@@ -23,6 +23,7 @@ fn main() {
     ,   Program{name: "day13-2", input: "day13.txt", entry: day13::part_two}
     ,   Program{name: "day14-1", input: "day14.txt", entry: day14::part_one}
     ,   Program{name: "day14-2", input: "day14.txt", entry: day14::part_two}
+    ,   Program{name: "day15-1", input: "day15.txt", entry: day15::part_one}
     ];
 
     let program = programs.iter().find(|prog| prog.name == args[1]).unwrap();
