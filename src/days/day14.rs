@@ -4,6 +4,7 @@ use itertools::Itertools;
 use itertools::MinMaxResult::MinMax;
 
 mod puzzle {
+  use itertools::Itertools;
   use std::collections::HashMap;
 
   #[derive(PartialEq, Eq, Clone, Hash, Debug)]
@@ -26,7 +27,8 @@ mod puzzle {
   }
 
   pub struct Polymer {
-    pub pairs : HashMap<ElementPair, u64>
+    pub pairs : HashMap<ElementPair, usize>,
+    pub elements : HashMap<Element, usize>
   }
   impl Polymer {
     pub fn parse(input: &str) -> Option<Polymer> {
@@ -34,36 +36,44 @@ mod puzzle {
         input
           .as_bytes()
           .windows(2)
-          .map(|pair| (ElementPair::new(pair[0] as char, pair[1] as char), 1u64))
+          .map(|pair| (ElementPair::new(pair[0] as char, pair[1] as char), 1))
           .collect::<HashMap<_,_>>();
 
-      Some(Polymer { pairs: pairs })
+      let elements = 
+        input
+          .chars()
+          .map(|c| (Element {letter: c},1 as usize))
+          .into_grouping_map()
+          .sum();
+
+      Some(Polymer { pairs: pairs, elements: elements })
     }
 
     pub fn apply_rules(&mut self, rules : &[PairInsertionRule]) {
-      let mut insertions : Vec<(ElementPair, u64)> = vec![];
-      for rule in rules {
-        if let Some(count) = self.pairs.get(&rule.pair()) {
-          rule.output_pairs().iter().for_each(|p| insertions.push((p.clone(), *count)))
-        }
-      }
-      for (pair, count) in insertions {
-        let counter = self.pairs.entry(pair).or_insert(0);
-        *counter += count
+      let applied_rules : Vec<(&PairInsertionRule, usize)>= 
+        rules.iter().filter_map(|rule| {
+          self.pairs
+            .get(&rule.pair())
+            //TODO: understand flat_map trait bounds and drop applications with count = 0
+            .map(|count| (rule, count.clone()))
+        }).collect();
+      
+      for (rule, count) in applied_rules {
+        let output = rule.output_pairs();
+        *self.pairs.entry(rule.pair()).or_insert(0) -= count;
+        *self.pairs.entry(output[0].clone()).or_insert(0) += count;
+        *self.pairs.entry(output[1].clone()).or_insert(0) += count;
+
+        *self.elements.entry(rule.insert.clone()).or_insert(0) += count;
       }
     }
 
-    pub fn elements(&self) -> HashMap<Element, u64> {
-      let mut elements = HashMap::new();
-      for (pair, count) in self.pairs.iter() {
-        *elements.entry(pair.l.clone()).or_insert(0) += count;
-        *elements.entry(pair.r.clone()).or_insert(0) += count;
-      }
-      elements
+    pub fn elements(&self) -> &HashMap<Element, usize> {
+      &self.elements
     }
 
-    pub fn element_count(&self, element: Element) -> Option<u64> {
-      self.elements().get(&element).map(|n| n.clone())
+    pub fn element_count(&self, element: Element) -> usize {
+      self.elements().get(&element).map(|n| n.clone()).unwrap_or(0)
     }
   }
 
@@ -195,9 +205,9 @@ mod tests {
     ];
     polymer.apply_rules(&rules);
     // "NCNBCHB"
-    assert_eq!(polymer.element_count(Element { letter: 'N'}), Some(2));
-    assert_eq!(polymer.element_count(Element { letter: 'C'}), Some(2));
-    assert_eq!(polymer.element_count(Element { letter: 'B'}), Some(2));
-    assert_eq!(polymer.element_count(Element { letter: 'H'}), Some(1));
+    assert_eq!(polymer.element_count(Element { letter: 'N'}), 2);
+    assert_eq!(polymer.element_count(Element { letter: 'C'}), 2);
+    assert_eq!(polymer.element_count(Element { letter: 'B'}), 2);
+    assert_eq!(polymer.element_count(Element { letter: 'H'}), 1);
   }
 }
