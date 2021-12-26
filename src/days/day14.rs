@@ -24,6 +24,10 @@ mod puzzle {
         r: Element{ letter: r }
       }
     }
+    pub fn of(s: &str) -> ElementPair {
+      let cs : Vec<char> = s.chars().collect();
+      ElementPair::new(cs[0], cs[1])
+    }
   }
 
   pub struct Polymer {
@@ -37,7 +41,8 @@ mod puzzle {
           .as_bytes()
           .windows(2)
           .map(|pair| (ElementPair::new(pair[0] as char, pair[1] as char), 1))
-          .collect::<HashMap<_,_>>();
+          .into_grouping_map()
+          .sum();
 
       let elements = 
         input
@@ -77,6 +82,7 @@ mod puzzle {
     }
   }
 
+  #[derive(Debug)]
   pub struct PairInsertionRule {
     left : Element,
     right : Element,
@@ -141,7 +147,6 @@ pub fn step_and_min_max(input: &str, steps: u32) -> Option<u64> {
     } else {
       None
     }
-
 }
 
 pub fn part_one(input: &str) -> Option<u64> {
@@ -209,5 +214,13 @@ mod tests {
     assert_eq!(polymer.element_count(Element { letter: 'C'}), 2);
     assert_eq!(polymer.element_count(Element { letter: 'B'}), 2);
     assert_eq!(polymer.element_count(Element { letter: 'H'}), 1);
+  }
+
+  #[test]
+  fn test_parse_puzzle() {
+    let polymer = Polymer::parse("PFVKOBSHPSPOOOCOOHBP").unwrap();
+
+    assert_eq!(*polymer.pairs.get(&ElementPair::of("OO")).unwrap(), 3);
+    assert_eq!(*polymer.elements.get(&Element {letter: 'O'}).unwrap(), 6);
   }
 }
