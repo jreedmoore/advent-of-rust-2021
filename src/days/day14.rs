@@ -16,7 +16,6 @@ mod puzzle {
   }
   impl Polymer {
     pub fn parse(input: &str) -> Option<Polymer> {
-      println!("help");
       Some(Polymer { elements: input.chars().map(|c| Element { letter: c }).collect() })
     }
     pub fn pretty_print(&self) -> String {
@@ -95,6 +94,7 @@ pub fn step_and_min_max(input: &str, steps: u32) -> Option<u64> {
   let (mut start_polymer, rules) = puzzle::parse_input(input)?;
 
   for _i in 0..steps {
+    println!("{}", _i);
     start_polymer.apply_rules(&rules);
   }
   if let MinMax(min, max) =
@@ -116,7 +116,14 @@ pub fn part_one(input: &str) -> Option<u64> {
   step_and_min_max(input, 10)
 }
 
+/*
+- pair insertion rule only needs to know about pairs, decompose polymer into pairs on parse
+- pair insertion rule output only depends on rule, not adjacent elements
 
+- parse polymer into a HashMap<(Element, Element), u64>
+- rule application is elements.contains((l,r))
+- rule production is li + count, ir + count
+*/
 pub fn part_two(input: &str) -> Option<u64> {
   step_and_min_max(input, 40)
 }
