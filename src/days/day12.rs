@@ -146,6 +146,10 @@ pub fn part_one(input: &str) -> Option<u64> {
   Some(paths)
 }
 
+/*
+Improve running time here, try reducing memory usage by only storing visit counts and last vertex instead of entire path.
+(Still going to have b^d running time and space?)
+*/
 pub fn part_two(input: &str) -> Option<u64> {
   let system = puzzle::parse_input(input)?;
   let paths = system.valid_paths_count(|path: &puzzle::Path, v| {
