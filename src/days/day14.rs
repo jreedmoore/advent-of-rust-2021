@@ -4,48 +4,66 @@ use itertools::Itertools;
 use itertools::MinMaxResult::MinMax;
 
 mod puzzle {
-  use std::collections::VecDeque;
+  use std::collections::HashMap;
 
   #[derive(PartialEq, Eq, Clone, Hash, Debug)]
   pub struct Element {
-    letter : char
+    pub letter : char
+  }
+
+  #[derive(PartialEq, Eq, Clone, Hash, Debug)]
+  pub struct ElementPair {
+    l : Element,
+    r : Element
+  }
+  impl ElementPair {
+    pub fn new(l: char, r: char) -> ElementPair {
+      ElementPair {
+        l: Element{ letter: l },
+        r: Element{ letter: r }
+      }
+    }
   }
 
   pub struct Polymer {
-    pub elements : Vec<Element>
+    pub pairs : HashMap<ElementPair, u64>
   }
   impl Polymer {
     pub fn parse(input: &str) -> Option<Polymer> {
-      Some(Polymer { elements: input.chars().map(|c| Element { letter: c }).collect() })
-    }
-    pub fn pretty_print(&self) -> String {
-      self.elements.iter().map(|e| e.letter).collect()
+      let pairs = 
+        input
+          .as_bytes()
+          .windows(2)
+          .map(|pair| (ElementPair::new(pair[0] as char, pair[1] as char), 1u64))
+          .collect::<HashMap<_,_>>();
+
+      Some(Polymer { pairs: pairs })
     }
 
     pub fn apply_rules(&mut self, rules : &[PairInsertionRule]) {
-      let mut insertions : VecDeque<(usize, Element)> = VecDeque::new();
-      for i in 0..self.elements.len() - 1 {
-        let l = &self.elements[i];
-        let r = &self.elements[i+1];
-        if let Some(rule) = rules.iter().find(|rule| rule.left == *l && rule.right == *r) {
-          insertions.push_back((i, rule.insert.clone()))
+      let mut insertions : Vec<(ElementPair, u64)> = vec![];
+      for rule in rules {
+        if let Some(count) = self.pairs.get(&rule.pair()) {
+          rule.output_pairs().iter().for_each(|p| insertions.push((p.clone(), *count)))
         }
       }
-      let mut next_elements : Vec<Element> = Vec::with_capacity(self.elements.len() + insertions.len());
-      let mut insert_iter = insertions.iter();
-      let mut insert_peek = insert_iter.next();
-      for i in 0..self.elements.len() {
-        next_elements.push(self.elements[i].clone());
-        while let Some((idx, elem)) = insert_peek {
-          if *idx == i {
-            next_elements.push(elem.clone());
-            insert_peek = insert_iter.next();
-          } else {
-            break;
-          }
-        }
+      for (pair, count) in insertions {
+        let counter = self.pairs.entry(pair).or_insert(0);
+        *counter += count
       }
-      self.elements = next_elements;
+    }
+
+    pub fn elements(&self) -> HashMap<Element, u64> {
+      let mut elements = HashMap::new();
+      for (pair, count) in self.pairs.iter() {
+        *elements.entry(pair.l.clone()).or_insert(0) += count;
+        *elements.entry(pair.r.clone()).or_insert(0) += count;
+      }
+      elements
+    }
+
+    pub fn element_count(&self, element: Element) -> Option<u64> {
+      self.elements().get(&element).map(|n| n.clone())
     }
   }
 
@@ -75,6 +93,17 @@ mod puzzle {
         insert: Element { letter: insert} 
       })
     }
+
+    pub fn pair(&self) -> ElementPair {
+      ElementPair {l: self.left.clone(), r: self.right.clone() }
+    }
+    
+    pub fn output_pairs(&self) -> Vec<ElementPair> {
+      vec![
+        ElementPair {l: self.left.clone(), r: self.insert.clone()}
+      , ElementPair {l: self.insert.clone(), r: self.right.clone()}
+      ]
+    }
   }
   
   pub fn parse_input(input: &str) -> Option<(Polymer, Vec<PairInsertionRule>)> {
@@ -97,14 +126,7 @@ pub fn step_and_min_max(input: &str, steps: u32) -> Option<u64> {
     println!("{}", _i);
     start_polymer.apply_rules(&rules);
   }
-  if let MinMax(min, max) =
-    start_polymer.elements.iter()
-      .map(|k| (k,1 as usize))
-      .into_grouping_map()
-      .sum()
-      .values()
-      .minmax() {
-
+  if let MinMax(min, max) = start_polymer.elements().values().minmax() {
       Some((max-min) as u64)
     } else {
       None
@@ -172,6 +194,10 @@ mod tests {
     , PairInsertionRule::new(('C', 'B'), 'H')
     ];
     polymer.apply_rules(&rules);
-    assert_eq!(polymer.pretty_print(), "NCNBCHB");
+    // "NCNBCHB"
+    assert_eq!(polymer.element_count(Element { letter: 'N'}), Some(2));
+    assert_eq!(polymer.element_count(Element { letter: 'C'}), Some(2));
+    assert_eq!(polymer.element_count(Element { letter: 'B'}), Some(2));
+    assert_eq!(polymer.element_count(Element { letter: 'H'}), Some(1));
   }
 }
