@@ -139,7 +139,6 @@ pub fn step_and_min_max(input: &str, steps: u32) -> Option<u64> {
   let (mut start_polymer, rules) = puzzle::parse_input(input)?;
 
   for _i in 0..steps {
-    println!("{}", _i);
     start_polymer.apply_rules(&rules);
   }
   if let MinMax(min, max) = start_polymer.elements().values().minmax() {
