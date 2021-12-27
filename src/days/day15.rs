@@ -12,21 +12,18 @@ mod puzzle {
       CaveLocation { row: self.width-1, column: self.height-1 }
     }
     pub fn get_neighbors(&self, of: CaveLocation) -> Vec<CaveLocation> {
-      let mut res = vec![];
       let ir = of.row as i64;
       let ic = of.column as i64;
       // TODO: is there a less messy way to do my bounds checking?
-      for r in ir - 1 .. ir + 2  {
-        for c in ic - 1 .. ic + 2 {
-          if r >= 0 && r < self.width.try_into().unwrap() &&
-             c >= 0 && c < self.height.try_into().unwrap() {
-            if (r,c) != (of.row.try_into().unwrap(), of.column.try_into().unwrap()) {
-              res.push(CaveLocation { row: r as usize, column: c as usize })
-            }
-          }
-        }
-      }
-      res
+      vec![
+        (ir-1,ic)
+      , (ir,ic-1)
+      , (ir+1,ic)
+      , (ir,ic+1)
+      ].iter()
+       .filter(|(r,c)| *r >= 0 && *c >= 0 && *r < self.height.try_into().unwrap() && *c < self.width.try_into().unwrap())
+       .map(|(r,c)| CaveLocation { row: *r as usize, column: *c as usize })
+       .collect()
     }
     pub fn len(&self) -> usize {
       self.properties.len()
@@ -63,7 +60,7 @@ mod puzzle {
     }
   }
 
-  #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+  #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Debug)]
   pub struct CaveLocation {
     row: usize,
     column: usize
@@ -99,24 +96,26 @@ mod puzzle {
   }
 
   pub fn lowest_cost_between<F: Fn(&LocationProperties) -> u64>(graph : CaveGraph, cost_fun : F, start: CaveLocation, end: CaveLocation) -> Option<u64> {
-    let mut dist: Vec<Option<u64>> = (0..graph.len()).map(|_| None).collect();
+    let mut dist: Vec<u64> = (0..graph.len()).map(|_| u64::MAX).collect();
 
     let mut heap = BinaryHeap::new();
 
-    dist[graph.idx(start)] = Some(0);
+    dist[graph.idx(start)] = 0;
     heap.push(State { cost: 0, position: start });
 
     while let Some(State { cost, position }) = heap.pop() {
+      // println!("{:?} {:?} {:?}", cost, dist[graph.idx(position)], position);
       if position == end { return Some(cost); }
 
-      if dist[graph.idx(position)].map(|c| cost > c).unwrap_or(false) { continue; }
+      // ignore more expensive path (if dist relaxed)
+      if cost > dist[graph.idx(position)] { continue; }
 
       for neighbor in graph.get_neighbors(position) {
         let next = State { cost: cost + cost_fun(graph.get(neighbor)), position: neighbor };
 
-        if dist[graph.idx(next.position)].map(|c| next.cost < c).unwrap_or(true) {
+        if next.cost < dist[graph.idx(next.position)] {
           heap.push(next);
-          dist[graph.idx(next.position)] = Some(next.cost);
+          dist[graph.idx(next.position)] = next.cost;
         }
       }
     }
@@ -157,5 +156,15 @@ mod tests {
   #[test]
   fn test_example_part_one() {
     assert_eq!(part_one(EXAMPLE), Some(40));
+  }
+
+  #[test]
+  fn test_hand_worked_example() {
+    let example = r#"
+    155
+    155
+    111
+    "#;
+    assert_eq!(part_one(example), Some(4));
   }
 }
