@@ -12,8 +12,25 @@ mod puzzle {
     value: u64
   }
   impl Literal {
-    fn parse(input: &str) -> Option<Literal> {
-      todo!()
+    fn parse(input: &mut HexStringReader) -> Option<Literal> {
+      // or take version as parameter and start reader after tag?
+      let version = input.read_bits(3);
+      let _ = input.read_bits(3);
+      let mut nybbles : Vec<u8> = Vec::new();
+      loop {
+        let stop_flag = input.read_bits(1) == 0;
+        let next = input.read_bits(4);
+        nybbles.push(next);
+        if stop_flag { break; }
+      }
+      let mut value : u64 = 0;
+      let mut shift : usize = 0;
+      for nybble in nybbles.iter().rev() {
+        println!("{} {:x?}", shift, nybble);
+        value = value | (*nybble as u64) << shift;
+        shift = shift + 4;
+      }
+      Some(Literal { version: version, value: value })
     }
   }
   impl Packet for Literal {
@@ -41,7 +58,6 @@ mod puzzle {
         let start = i*2;
         let slice = &input[start..start+2];
         let b = u8::from_str_radix(slice,16).ok()?;
-        //println!("parse {:x?}", b);
         bytes.push(b)
       }
       Some(HexString { bytes: bytes })
@@ -91,6 +107,9 @@ mod puzzle {
     offset: usize
   }
   impl HexStringReader {
+    fn new(hex_string: HexString) -> HexStringReader {
+      HexStringReader { hex_string: hex_string, offset: 0 }
+    }
     fn read_bits(&mut self, len: usize) -> u8 {
       let res = HexString::read_bits(&self.hex_string, self.offset, len);
       self.offset += len;
@@ -104,7 +123,8 @@ mod puzzle {
 
     #[test]
     fn test_parse_literal() {
-      assert_eq!(Literal::parse("D2FE28"), Some(Literal { version: 6, value: 2021 }))
+      let hex_string = HexString::parse("D2FE28").unwrap();
+      assert_eq!(Literal::parse(&mut HexStringReader::new(hex_string)), Some(Literal { version: 6, value: 2021 }))
     }
 
     #[test]
