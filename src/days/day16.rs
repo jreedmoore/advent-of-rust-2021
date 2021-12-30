@@ -1,9 +1,25 @@
 mod puzzle {
   // These parsers would probably be easier to express with nom
   // https://github.com/Geal/nom 
-  trait Packet {
-    fn version(&self) -> u8;
-    fn type_id(&self) -> u8;
+  enum Packet {
+    Lit(Literal),
+    Op(Operator)
+  }
+  impl Packet {
+    fn maybe_parse(input: &mut HexStringReader) -> Option<Packet> {
+      let version = input.read_bits(3);
+      let typ = input.read_bits(3);
+      match typ {
+        4 => Some(Packet::Lit(Literal::parse(version, input))),
+        _ => Some(Packet::Op(Operator::parse(version, typ, input)))
+      }
+    }
+    fn version(&self) -> u8 {
+      match self {
+        Packet::Lit(l) => l.version,
+        Packet::Op(o) => o.version
+      }
+    }
   }
 
   #[derive(Debug, PartialEq)]
@@ -12,10 +28,17 @@ mod puzzle {
     value: u64
   }
   impl Literal {
-    fn parse(input: &mut HexStringReader) -> Option<Literal> {
-      // or take version as parameter and start reader after tag?
+    fn maybe_parse(input: &mut HexStringReader) -> Option<Literal> {
       let version = input.read_bits(3);
-      let _ = input.read_bits(3);
+      let typ = input.read_bits(3);
+      if typ == 4 {
+        Some(Literal::parse(version, input))
+      } else {
+        None
+      }
+    }
+    fn parse(version: u8, input: &mut HexStringReader) -> Literal {
+      // or take version as parameter and start reader after tag?
       let mut nybbles : Vec<u8> = Vec::new();
       loop {
         let stop_flag = input.read_bits(1) == 0;
@@ -26,28 +49,34 @@ mod puzzle {
       let mut value : u64 = 0;
       let mut shift : usize = 0;
       for nybble in nybbles.iter().rev() {
-        println!("{} {:x?}", shift, nybble);
         value = value | (*nybble as u64) << shift;
         shift = shift + 4;
       }
-      Some(Literal { version: version, value: value })
-    }
-  }
-  impl Packet for Literal {
-    fn version(&self) -> u8 {
-      self.version
-    }
-    fn type_id(&self) -> u8 {
-      4u8
+      Literal { version: version, value: value }
     }
   }
 
   struct Operator {
     version: u8,
     type_id: u8,
-    sub_packets: Vec<Box<dyn Packet>>
+    sub_packets: Vec<Packet>
+  }
+  impl Operator {
+    fn maybe_parse(input: &mut HexStringReader) -> Option<Operator> {
+      let version = input.read_bits(3);
+      let typ = input.read_bits(3);
+      if typ != 4 {
+        Some(Operator::parse(version, typ, input))
+      } else {
+        None
+      }
+    }
+    fn parse(version: u8, type_id: u8, input: &mut HexStringReader) -> Operator {
+      todo!();
+    }
   }
 
+  #[derive(Clone)]
   struct HexString {
     bytes: Vec<u8>
   }
@@ -124,7 +153,8 @@ mod puzzle {
     #[test]
     fn test_parse_literal() {
       let hex_string = HexString::parse("D2FE28").unwrap();
-      assert_eq!(Literal::parse(&mut HexStringReader::new(hex_string)), Some(Literal { version: 6, value: 2021 }))
+      assert_eq!(Literal::maybe_parse(&mut HexStringReader::new(hex_string.clone())), Some(Literal { version: 6, value: 2021 }));
+      assert_eq!(Packet::maybe_parse(&mut HexStringReader::new(hex_string.clone())).unwrap().version(), 6);
     }
 
     #[test]
