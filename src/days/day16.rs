@@ -31,6 +31,49 @@ mod puzzle {
         }
       }
     }
+
+    pub fn evaluate(&self) -> u64 {
+      match self {
+        Packet::Lit(Literal {value: v, ..}) => v.clone(),
+        Packet::Op(Operator{type_id: OperatorType::Sum, sub_packets: packets, ..}) => {
+          packets.iter().map(|p| Packet::evaluate(p)).fold(0, |acc, b| acc + b)
+        },
+        Packet::Op(Operator{type_id: OperatorType::Product, sub_packets: packets, ..}) => {
+          packets.iter().map(|p| Packet::evaluate(p)).fold(1, |acc, b| acc * b)
+        },
+        Packet::Op(Operator{type_id: OperatorType::Minimum, sub_packets: packets, ..}) => {
+          packets.iter().map(|p| Packet::evaluate(p)).min().unwrap_or(0)
+        },
+        Packet::Op(Operator{type_id: OperatorType::Maximum, sub_packets: packets, ..}) => {
+          packets.iter().map(|p| Packet::evaluate(p)).max().unwrap_or(0)
+        },
+        Packet::Op(Operator{type_id: OperatorType::LessThan, sub_packets: packets, ..}) => {
+          let ps: Vec<u64> = packets.iter().map(|p| Packet::evaluate(p)).collect();
+          if ps[0] < ps[1] {
+            1
+          } else {
+            0
+          }
+        },
+        Packet::Op(Operator{type_id: OperatorType::GreaterThan, sub_packets: packets, ..}) => {
+          let ps: Vec<u64> = packets.iter().map(|p| Packet::evaluate(p)).collect();
+          if ps[0] > ps[1] {
+            1
+          } else {
+            0
+          }
+        },
+        Packet::Op(Operator{type_id: OperatorType::EqualTo, sub_packets: packets, ..}) => {
+          let ps: Vec<u64> = packets.iter().map(|p| Packet::evaluate(p)).collect();
+          if ps[0] == ps[1] {
+            1
+          } else {
+            0
+          }
+        },
+        Packet::Op(Operator{type_id: OperatorType::Literal, ..}) => unreachable!()
+      }
+    }
   }
 
   #[derive(Debug, PartialEq)]
@@ -322,6 +365,13 @@ pub fn part_one(input: &str) -> Option<u64> {
   Some(packet.vec().iter().fold(0u64, |acc, p| acc + p.version() as u64))
 }
 
+pub fn part_two(input: &str) -> Option<u64> {
+  let hex_string = puzzle::HexString::parse(input)?;
+  let mut reader = puzzle::HexStringReader::new(hex_string);
+  let root_packet = puzzle::Packet::maybe_parse(&mut reader)?;
+  Some(root_packet.evaluate())
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -337,5 +387,17 @@ mod tests {
     assert_eq!(part_one(EXAMPLE_2), Some(12));
     assert_eq!(part_one(EXAMPLE_3), Some(23));
     assert_eq!(part_one(EXAMPLE_4), Some(31));
+  }
+
+  #[test]
+  fn test_part_two_examples() {
+    assert_eq!(part_two("C200B40A82"), Some(3)); //sum 1+2
+    assert_eq!(part_two("04005AC33890"), Some(54)); //6*9 (nice)
+    assert_eq!(part_two("880086C3E88112"), Some(7)); //min(7,8,9)
+    assert_eq!(part_two("CE00C43D881120"), Some(9)); //max(7,8,9)
+    assert_eq!(part_two("D8005AC2A8F0"), Some(1)); //5 < 15 == 1
+    assert_eq!(part_two("F600BC2D8F"), Some(0)); //5 > 15 == 0
+    assert_eq!(part_two("9C005AC2F8F0"), Some(0)); //(5 == 15) == 0
+    assert_eq!(part_two("9C0141080250320F1802104A08"), Some(1)); // {1+3 = 2*2} = 1
   }
 }
