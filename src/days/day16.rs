@@ -8,10 +8,10 @@ mod puzzle {
   impl Packet {
     pub fn maybe_parse(input: &mut HexStringReader) -> Option<Packet> {
       let version = input.read_bits(3);
-      let typ = input.read_bits(3);
+      let typ : OperatorType = input.read_bits(3).try_into().ok()?;
       //println!("v {} t {}", version, typ);
       match typ {
-        4 => Some(Packet::Lit(Literal::parse(version, input))),
+        OperatorType::Literal => Some(Packet::Lit(Literal::parse(version, input))),
         _ => Some(Packet::Op(Operator::parse(version, typ, input)))
       }
     }
@@ -66,22 +66,50 @@ mod puzzle {
     }
   }
 
+  #[derive(Debug, PartialEq, Eq)]
+  pub enum OperatorType {
+    Sum = 0,
+    Product = 1,
+    Minimum = 2,
+    Maximum = 3,
+    Literal = 4,
+    GreaterThan = 5,
+    LessThan = 6,
+    EqualTo = 7
+  }
+  impl TryFrom<u8> for OperatorType {
+    type Error = ();
+
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+      match v {
+        v if v == OperatorType::Sum as u8 => Ok(OperatorType::Sum),
+        v if v == OperatorType::Product as u8 => Ok(OperatorType::Product),
+        v if v == OperatorType::Minimum as u8 => Ok(OperatorType::Minimum),
+        v if v == OperatorType::Maximum as u8 => Ok(OperatorType::Maximum),
+        v if v == OperatorType::Literal as u8 => Ok(OperatorType::Literal),
+        v if v == OperatorType::GreaterThan as u8 => Ok(OperatorType::GreaterThan),
+        v if v == OperatorType::LessThan as u8 => Ok(OperatorType::LessThan),
+        v if v == OperatorType::EqualTo as u8 => Ok(OperatorType::EqualTo),
+        _ => Err(())
+      }
+    }
+  }
   struct Operator {
     version: u8,
-    type_id: u8,
+    type_id: OperatorType,
     sub_packets: Vec<Packet>
   }
   impl Operator {
     fn maybe_parse(input: &mut HexStringReader) -> Option<Operator> {
       let version = input.read_bits(3);
-      let typ = input.read_bits(3);
-      if typ != 4 {
+      let typ : OperatorType = input.read_bits(3).try_into().ok()?;
+      if typ != OperatorType::Literal {
         Some(Operator::parse(version, typ, input))
       } else {
         None
       }
     }
-    fn parse(version: u8, type_id: u8, input: &mut HexStringReader) -> Operator {
+    fn parse(version: u8, type_id: OperatorType, input: &mut HexStringReader) -> Operator {
       let length_type_id = input.read_bits(1);
       if length_type_id == 0 {
         let bit_length = input.read_bits_u16(15);
@@ -155,7 +183,6 @@ mod puzzle {
 
         let f = self.read_bits(offset, first_len);
         let s = self.read_bits(next_byte_offset, next_len);
-        println!("read_bits splitting {:x?} {:x?}", f, s);
         f << next_len | s
       } else {
         let vec_idx = offset / 8;
@@ -170,7 +197,6 @@ mod puzzle {
       if len > 8 {
         let f = self.read_bits(offset, 8) as u16;
         let s = self.read_bits(offset+8, len-8) as u16;
-        println!("off {} {:x?} {:x?} shift {}", offset, f, s, len-8);
         f << (len-8) | s
       } else {
         self.read_bits(offset, len) as u16
