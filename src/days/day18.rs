@@ -1,13 +1,46 @@
 mod puzzle {
   #[derive(PartialEq, Debug)]
   pub enum SnailfishNum {
+    Pair(Box<SnailfishNum>, Box<SnailfishNum>),
+    Literal(u64)
   }
   impl SnailfishNum {
-    fn parse(input: &str) -> Option<SnailfishNum> {
-      todo!()
+    fn parse(input: &str) -> Option<Box<SnailfishNum>> {
+      parser::snailfish_num(input).ok().map(|(_,num)| num)
     }
     fn magnitude(&self) -> u64 {
-      todo!()
+      match self {
+        SnailfishNum::Pair(l, r) => 3*l.magnitude() + 2*r.magnitude(),
+        SnailfishNum::Literal(n) => n.clone()
+      }
+    }
+  }
+  mod parser {
+    use super::*;
+    use nom::{
+      IResult,
+      branch::alt,
+      combinator::map,
+      sequence::{delimited, separated_pair},
+      bytes::complete::tag
+    };
+
+    fn snailfish_elem(input: &str) -> IResult<&str, Box<SnailfishNum>> {
+      alt((
+        map(nom::character::complete::u64, |n| Box::new(SnailfishNum::Literal(n))),
+        snailfish_num
+      ))(input)
+    }
+
+    pub fn snailfish_num(input: &str) -> IResult<&str, Box<SnailfishNum>> {
+      map(
+        delimited(
+          tag("["), 
+          separated_pair(snailfish_elem, tag(","), snailfish_elem), 
+          tag("]")
+        ),
+        |(l,r)| Box::new(SnailfishNum::Pair(l, r))
+      )(input)
     }
   }
 
