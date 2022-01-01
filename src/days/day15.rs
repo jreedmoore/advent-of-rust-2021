@@ -1,6 +1,6 @@
 mod puzzle {
   use std::cmp::Ordering;
-  use std::collections::{BinaryHeap, HashMap};
+  use std::collections::BinaryHeap;
 
   #[derive(Debug)]
   pub struct CaveGraph {
@@ -96,56 +96,6 @@ mod puzzle {
     }
   }
 
-  pub struct ExpandedCaveGraph {
-    inner: CaveGraph
-  }
-  impl ExpandedCaveGraph {
-    pub fn width(&self) -> usize {
-      self.inner.width * 5
-    }
-    pub fn height(&self) -> usize {
-      self.inner.height * 5
-    }
-    pub fn top_left(&self) -> CaveLocation {
-      CaveLocation { row: 0, column: 0 }
-    }
-    pub fn bottom_right(&self) -> CaveLocation {
-      CaveLocation { row: self.width()-1, column: self.height()-1 }
-    }
-    pub fn get_neighbors(&self, of: CaveLocation) -> Vec<CaveLocation> {
-      let ir = of.row as i64;
-      let ic = of.column as i64;
-      // TODO: is there a less messy way to do my bounds checking?
-      vec![
-        (ir-1,ic)
-      , (ir,ic-1)
-      , (ir+1,ic)
-      , (ir,ic+1)
-      ].iter()
-       .filter(|(r,c)| *r >= 0 && *c >= 0 && *r < self.height().try_into().unwrap() && *c < self.width().try_into().unwrap())
-       .map(|(r,c)| CaveLocation { row: *r as usize, column: *c as usize })
-       .collect()
-    }
-    pub fn len(&self) -> usize {
-      self.inner.properties.len()
-    }
-    pub fn get(&self, at: CaveLocation) -> LocationProperties {
-      let base_loc = CaveLocation { row: at.row % self.inner.width, column: at.column % self.inner.height };
-      let base_idx = self.inner.idx(base_loc);
-      let base_prop = &self.inner.properties[base_idx];
-      
-      let row_dup = (at.row / self.inner.width) as u64;
-      let col_dup = (at.column / self.inner.height) as u64;
-
-      let new_risk = CaveGraph::add_and_wrap(base_prop.risk_level, row_dup + col_dup);
-
-      LocationProperties { risk_level: new_risk }
-    }
-    pub fn parse(input: &str) -> Option<ExpandedCaveGraph> {
-      Some(ExpandedCaveGraph { inner: CaveGraph::parse(input)? })
-    }
-  }
-
   #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Hash)]
   pub struct CaveLocation {
     pub row: usize,
@@ -180,33 +130,6 @@ mod puzzle {
       }
   }
 
-  pub fn sparse_lowest_cost_between<F: Fn(&LocationProperties) -> u64>(graph : ExpandedCaveGraph, cost_fun : F, start: CaveLocation, end: CaveLocation) -> Option<u64> {
-    let mut dist: HashMap<CaveLocation, u64> = HashMap::new();
-
-    let mut heap = BinaryHeap::new();
-
-    dist.insert(start, 0);
-    heap.push(State { cost: 0, position: start });
-
-    while let Some(State { cost, position }) = heap.pop() {
-      // println!("{:?} {:?} {:?}", cost, dist.get(&position), position);
-      if position == end { return Some(cost); }
-
-      // ignore more expensive path (if dist relaxed)
-      if cost > *dist.get(&position).unwrap_or(&u64::MAX) { continue; }
-
-      for neighbor in graph.get_neighbors(position) {
-        let next = State { cost: cost + cost_fun(&graph.get(neighbor)), position: neighbor };
-
-        if next.cost < *dist.get(&next.position).unwrap_or(&u64::MAX) {
-          heap.push(next);
-          dist.insert(next.position, next.cost);
-        }
-      }
-    }
-
-    None
-  }
   pub fn lowest_cost_between<F: Fn(&LocationProperties) -> u64>(graph : CaveGraph, cost_fun : F, start: CaveLocation, end: CaveLocation) -> Option<u64> {
     let mut dist: Vec<u64> = (0..graph.len()).map(|_| u64::MAX).collect();
 
@@ -304,25 +227,6 @@ mod tests {
     assert_eq!(part_two("2"), Some(3+4+5+6+7+8+9+1));
     assert_eq!(part_two("8"), Some(9+1+2+3+4+5+6+7));
     assert_eq!(part_two("11\n11"), Some(1+1+(2+3+4+5+6+7+8+9)*2));
-  }
-
-  #[test]
-  fn test_properties_part_two() {
-    let example = "1";
-    let cave = puzzle::ExpandedCaveGraph::parse(example).unwrap();
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 0, column: 0 }).risk_level, 1);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 1, column: 0 }).risk_level, 2);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 0, column: 1 }).risk_level, 2);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 0, column: 2 }).risk_level, 3);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 0, column: 3 }).risk_level, 4);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 0, column: 4 }).risk_level, 5);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 1, column: 4 }).risk_level, 6);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 2, column: 4 }).risk_level, 7);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 3, column: 4 }).risk_level, 8);
-    assert_eq!(cave.get(puzzle::CaveLocation { row: 4, column: 4 }).risk_level, 9);
-
-    let overflow_cave = puzzle::ExpandedCaveGraph::parse("2").unwrap();
-    assert_eq!(overflow_cave.get(puzzle::CaveLocation { row: 4, column: 4 }).risk_level, 1);
   }
 
   #[test]

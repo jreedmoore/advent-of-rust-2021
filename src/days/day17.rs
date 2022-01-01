@@ -25,15 +25,17 @@ mod puzzle {
     pub fn step(&mut self) {
       self.position.plus(&self.velocity);
       self.velocity.x = 
-        if (self.velocity.x > 0) {
+        if self.velocity.x > 0 {
           self.velocity.x - 1
-        } else if (self.velocity.x < 0) {
+        } else if self.velocity.x < 0 {
           self.velocity.x + 1
         } else {
           0
         };
       self.velocity.y = self.velocity.y - 1;
     }
+
+    #[cfg(test)]
     pub fn hits_target(&mut self, target: &Target) -> bool {
       self.max_height(target).is_some()
     }
@@ -102,10 +104,9 @@ mod puzzle {
     use super::*;
     use nom::{
       IResult,
-      multi::{many0, many1},
-      combinator::{map_res, recognize, fail},
+      combinator::fail,
       sequence::{delimited, preceded, terminated},
-      character::complete::{char, one_of, multispace0},
+      character::complete::multispace0,
       bytes::complete::tag
     };
     fn range_pair(input: &str) -> IResult<&str, (i32, i32)> {
@@ -140,7 +141,6 @@ mod puzzle {
     #[cfg(test)]
     mod tests {
       use super::*;
-      use super::super::*;
 
       #[test]
       fn test_parse_targets() {
@@ -180,7 +180,7 @@ pub fn part_two(input: &str) -> Option<u64> {
     for y in -100..100 {
       let velocity = puzzle::Vec2 {x: x, y: y};
       let mut probe = puzzle::Probe::with_velocity(velocity.clone());
-      if let Some(height) = probe.max_height(&target) {
+      if let Some(_height) = probe.max_height(&target) {
         count = count + 1
       }
     }

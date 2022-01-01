@@ -77,11 +77,12 @@ mod puzzle {
   }
 
   #[derive(Debug, PartialEq)]
-  struct Literal {
+  pub struct Literal {
     version: u8,
     value: u64
   }
   impl Literal {
+    #[cfg(test)]
     fn maybe_parse(input: &mut HexStringReader) -> Option<Literal> {
       let version = input.read_bits(3);
       let typ = input.read_bits(3);
@@ -137,12 +138,13 @@ mod puzzle {
       }
     }
   }
-  struct Operator {
+  pub struct Operator {
     version: u8,
     type_id: OperatorType,
     sub_packets: Vec<Packet>
   }
   impl Operator {
+    #[cfg(test)]
     fn maybe_parse(input: &mut HexStringReader) -> Option<Operator> {
       let version = input.read_bits(3);
       let typ : OperatorType = input.read_bits(3).try_into().ok()?;

@@ -8,33 +8,6 @@ mod puzzle {
   pub struct SnailfishNum {
     nums: Vec<Elem>
   }
-  impl std::fmt::Display for SnailfishNum {
-    fn fmt(&self, f : &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> { 
-      let mut d = 0;
-      let mut first = true;
-      for elem in self.nums.iter() {
-        if elem.depth > d {
-          write!(f, "{}", str::repeat("[", (elem.depth - d) as usize));
-          d = elem.depth;
-          first = true;
-        } 
-        write!(f, "{}", elem.value);
-        if first { 
-          write!(f, ","); 
-          first = false; 
-        } else {
-          first = true;
-          write!(f, "]");
-        }
-        if elem.depth < d {
-          write!(f, "{}", str::repeat("]", (d - elem.depth) as usize));
-          d = elem.depth;
-        }
-      }
-      write!(f, "{}", str::repeat("]", d.saturating_sub(1) as usize));
-      Ok(())
-    }
-  }
   impl SnailfishNum {
     pub fn parse(input: &str) -> Option<SnailfishNum> {
       parser::parse(input).ok().map(|t| t.1)
@@ -122,7 +95,7 @@ mod puzzle {
     use nom::{
       IResult,
       branch::alt,
-      combinator::{map, recognize, value},
+      combinator::{map, value},
       character::complete::char
     };
 
@@ -181,7 +154,7 @@ mod puzzle {
         let mut pre = SnailfishNum::parse(pre).unwrap();
         let post = SnailfishNum::parse(post).unwrap();
         assert!(pre.explode());
-        assert_eq!(pre, post.clone(), "exploding\n{} =>\n{}", pre, post);
+        assert_eq!(pre, post.clone(), "exploding\n{:?} =>\n{:?}", pre, post);
       }
       test("[[[[[9,8],1],2],3],4]", "[[[[0,9],2],3],4]"); //no regular number left
       test("[7,[6,[5,[4,[3,2]]]]]", "[7,[6,[5,[7,0]]]]"); //no regular number right
@@ -239,7 +212,7 @@ pub fn part_one(input: &str) -> Option<u64> {
 use itertools::Itertools;
 
 pub fn part_two(input: &str) -> Option<u64> {
-  let mut nums = 
+  let nums = 
     input.lines()
       .map(|l| l.trim())
       .filter(|l| !l.is_empty())

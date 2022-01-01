@@ -65,6 +65,7 @@ mod puzzle {
         .map(|x| x.clone())
     }
 
+    #[allow(dead_code)]
     pub fn pretty_print(&self) -> String {
       self.caves.iter().map(|v| {
         match v {

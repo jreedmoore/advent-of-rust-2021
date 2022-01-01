@@ -24,6 +24,7 @@ mod puzzle {
         r: Element{ letter: r }
       }
     }
+    #[cfg(test)]
     pub fn of(s: &str) -> ElementPair {
       let cs : Vec<char> = s.chars().collect();
       ElementPair::new(cs[0], cs[1])
@@ -77,6 +78,7 @@ mod puzzle {
       &self.elements
     }
 
+    #[cfg(test)]
     pub fn element_count(&self, element: Element) -> usize {
       self.elements().get(&element).map(|n| n.clone()).unwrap_or(0)
     }
@@ -89,6 +91,7 @@ mod puzzle {
     insert : Element
   }
   impl PairInsertionRule {
+    #[cfg(test)]
     pub fn new(lr : (char, char), insert: char) -> PairInsertionRule {
       let (l, r) = lr;
       PairInsertionRule {

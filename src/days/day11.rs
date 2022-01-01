@@ -75,6 +75,7 @@ mod puzzle {
       self.octopi.iter().all(|o| o.energy == 0)
     }
 
+    #[allow(dead_code)]
     pub fn pretty_print(&mut self) -> String {
       (0..self.height()).map(|row| { 
         (0..self.width).map(|col| {
@@ -110,7 +111,7 @@ mod puzzle {
 pub fn step_cave(input: &str, steps : usize) -> Option<u64> {
   let mut cave = puzzle::parse_input(input)?;
   //println!("staring config\n{}", cave.pretty_print());
-  for n in 0..steps {
+  for _n in 0..steps {
     cave.step();
     //println!("step {}\n{}", n+1, cave.pretty_print());
   }
@@ -141,7 +142,7 @@ pub fn part_two(input: &str) -> Option<u64> {
 mod tests {
   use super::*;
 
-  const full_example : &'static str = r#"
+  const FULL_EXAMPLE : &'static str = r#"
     5483143223
     2745854711
     5264556173
@@ -155,12 +156,12 @@ mod tests {
   "#;
   #[test]
   fn test_part_one_example() {
-    assert_eq!(part_one(full_example), Some(1656));
+    assert_eq!(part_one(FULL_EXAMPLE), Some(1656));
   }
 
   #[test]
   fn test_part_two_example() {
-    assert_eq!(part_two(full_example), Some(195));
+    assert_eq!(part_two(FULL_EXAMPLE), Some(195));
   }
 
   #[test]
