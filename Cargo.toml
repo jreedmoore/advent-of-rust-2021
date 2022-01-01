@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 itertools = "0.10.3"
 nom = "7.1.0"
+nalgebra = "0.29.0"
+petgraph = "0.6.0"
