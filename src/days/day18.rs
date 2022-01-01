@@ -36,12 +36,12 @@ mod puzzle {
     }
   }
   impl SnailfishNum {
-    fn parse(input: &str) -> Option<SnailfishNum> {
+    pub fn parse(input: &str) -> Option<SnailfishNum> {
       parser::parse(input).ok().map(|t| t.1)
     }
     // taken from tim visee, and I don't understand this implementation very well...
     // https://github.com/timvisee/advent-of-code-2021/blob/master/day18a/src/main.rs#L42
-    fn magnitude(&self) -> u64 {
+    pub fn magnitude(&self) -> u64 {
       fn run(idx: &mut usize, depth: u8, num: &SnailfishNum) -> u64 {
         3 * if num.nums[*idx].depth == depth {
           *idx += 1;
@@ -65,7 +65,23 @@ mod puzzle {
       }
     }
     fn explode(&mut self) -> bool {
-      todo!()
+      for i in 0..self.nums.len() - 1 {
+        let l = self.nums[i].clone();
+        if l.depth == 5 {
+          let r = self.nums[i+1].clone();
+          self.nums[i].depth -= 1;
+          self.nums[i].value = 0;
+          self.nums.remove(i+1);
+          if i > 0 {
+            self.nums[i-1].value += l.value;
+          }
+          if i < self.nums.len() - 1 {
+            self.nums[i+1].value += r.value;
+          }
+          return true;
+        }
+      }
+      false
     }
 
     fn half_up(x: u8) -> u8 {
@@ -81,7 +97,6 @@ mod puzzle {
     fn split(&mut self) -> bool {
       for i in 0..self.nums.len() {
         let v = self.nums[i].clone();
-        println!("{} {:?}", i, v);
         if v.value >= 10 {
           self.nums[i] = Elem { value: SnailfishNum::half_up(v.value), depth: v.depth + 1 };
           self.nums.insert(i, Elem { value: SnailfishNum::half_down(v.value), depth: v.depth + 1});
@@ -97,7 +112,7 @@ mod puzzle {
         break;
       }
     }
-    fn add_and_reduce(&mut self, other: &mut SnailfishNum) {
+    pub fn add_and_reduce(&mut self, other: &mut SnailfishNum) {
       self.add(other);
       self.reduce();
     }
@@ -165,7 +180,6 @@ mod puzzle {
       fn test(pre: &str, post: &str) {
         let mut pre = SnailfishNum::parse(pre).unwrap();
         let post = SnailfishNum::parse(post).unwrap();
-        println!("exploding\n{}=>{}", pre, post);
         assert!(pre.explode());
         assert_eq!(pre, post.clone(), "exploding\n{} =>\n{}", pre, post);
       }
@@ -212,7 +226,36 @@ mod puzzle {
   }
 }
 pub fn part_one(input: &str) -> Option<u64> {
-  todo!()
+  let mut nums = 
+    input.lines()
+      .map(|l| l.trim())
+      .filter(|l| !l.is_empty())
+      .map(|l| puzzle::SnailfishNum::parse(l))
+      .collect::<Option<Vec<puzzle::SnailfishNum>>>()?;
+
+  nums.iter_mut().reduce(|a,b| {a.add_and_reduce(b); a }).map(|n| n.magnitude())
+}
+
+use itertools::Itertools;
+
+pub fn part_two(input: &str) -> Option<u64> {
+  let mut nums = 
+    input.lines()
+      .map(|l| l.trim())
+      .filter(|l| !l.is_empty())
+      .map(|l| puzzle::SnailfishNum::parse(l))
+      .collect::<Option<Vec<puzzle::SnailfishNum>>>()?;
+
+  nums.iter().cartesian_product(nums.iter())
+    .flat_map(|(a,b)| {
+      let mut ab = a.clone();
+      ab.add_and_reduce(&mut b.clone());
+      let mut ba = b.clone();
+      ba.add_and_reduce(&mut a.clone());
+      vec![ab, ba]
+    })
+    .map(|n| n.magnitude())
+    .max()
 }
 
 #[cfg(test)]
@@ -232,7 +275,6 @@ mod tests {
     [[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]
   "#;
 
-  const EXAMPLE_SUM:  &'static str = "[[[[6,6],[7,6]],[[7,7],[7,0]]],[[[7,7],[7,7]],[[7,8],[9,9]]]]";
 
   const EXAMPLE_2: &'static str = r#"
     [[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]
@@ -255,4 +297,14 @@ mod tests {
     assert_eq!(part_one(EXAMPLE_2), Some(3488));
     assert_eq!(part_one(EXAMPLE), Some(4140));
   }
+
+  #[test]
+  fn test_part_two_example() {
+    //assert_eq!(part_one("[1,1]\n[2,2]\n[3,3]\n[4,4]"), Some(445));
+    //assert_eq!(part_one("[1,1]\n[2,2]\n[3,3]\n[4,4]\n[5,5]"), Some(791));
+    //assert_eq!(part_one("[1,1]\n[2,2]\n[3,3]\n[4,4]\n[5,5]\n[6,6]"), Some(1137));
+    //assert_eq!(part_one(EXAMPLE_2), Some(3488));
+    assert_eq!(part_two(EXAMPLE), Some(3993));
+  }
+
 }
