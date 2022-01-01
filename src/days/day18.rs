@@ -1,138 +1,105 @@
 mod puzzle {
   #[derive(PartialEq, Debug, Clone)]
-  pub enum SnailfishNum {
-    Pair(Box<SnailfishNum>, Box<SnailfishNum>),
-    Literal(u64)
+  pub struct Elem {
+    depth: u8,
+    value: u8
+  }
+  #[derive(PartialEq, Debug, Clone)]
+  pub struct SnailfishNum {
+    nums: Vec<Elem>
   }
   impl std::fmt::Display for SnailfishNum {
     fn fmt(&self, f : &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> { 
-      match self {
-        SnailfishNum::Literal(v) => write!(f, "{}", v),
-        SnailfishNum::Pair(l, r) => write!(f, "[{},{}]", l, r),
+      let mut d = 0;
+      let mut first = true;
+      for elem in self.nums.iter() {
+        if elem.depth > d {
+          write!(f, "{}", str::repeat("[", (elem.depth - d) as usize));
+          d = elem.depth;
+          first = true;
+        } 
+        write!(f, "{}", elem.value);
+        if first { 
+          write!(f, ","); 
+          first = false; 
+        } else {
+          first = true;
+          write!(f, "]");
+        }
+        if elem.depth < d {
+          write!(f, "{}", str::repeat("]", (d - elem.depth) as usize));
+          d = elem.depth;
+        }
       }
+      write!(f, "{}", str::repeat("]", d.saturating_sub(1) as usize));
+      Ok(())
     }
   }
   impl SnailfishNum {
     fn parse(input: &str) -> Option<SnailfishNum> {
-      parser::snailfish_num(input).ok().map(|(_,num)| *num)
+      parser::parse(input).ok().map(|t| t.1)
     }
+    // taken from tim visee, and I don't understand this implementation very well...
+    // https://github.com/timvisee/advent-of-code-2021/blob/master/day18a/src/main.rs#L42
     fn magnitude(&self) -> u64 {
-      match self {
-        SnailfishNum::Pair(l, r) => 3*l.magnitude() + 2*r.magnitude(),
-        SnailfishNum::Literal(n) => n.clone()
-      }
-    }
-    fn add(&self, other: &SnailfishNum) -> SnailfishNum {
-      SnailfishNum::Pair(Box::new(self.clone()), Box::new(other.clone()))
-    }
-    fn explode(&self) -> Option<SnailfishNum> {
-      fn run(num: &SnailfishNum, level: usize) -> Option<(SnailfishNum, Option<u64>)> {
-        let res = if level >= 3 {
-          match num {
-            SnailfishNum::Pair(l, r) => {
-              match (*l.clone(), *r.clone()) {
-                (SnailfishNum::Literal(l), SnailfishNum::Pair(ll, rr)) => {
-                  match (*ll.clone(), *rr.clone()) {
-                    (SnailfishNum::Literal(ll), SnailfishNum::Literal(rr)) => Some((
-                      SnailfishNum::Pair(
-                        Box::new(SnailfishNum::Literal(l+ll)), 
-                        Box::new(SnailfishNum::Literal(0))
-                      ),
-                      Some(rr)
-                      )),
-                    _ => None
-                  }
-                }
-                (SnailfishNum::Pair(ll, rr), SnailfishNum::Literal(r)) => {
-                  match (*ll.clone(), *rr.clone()) {
-                    (SnailfishNum::Literal(ll), SnailfishNum::Literal(rr)) => Some((
-                      SnailfishNum::Pair(
-                        Box::new(SnailfishNum::Literal(0)), 
-                        Box::new(SnailfishNum::Literal(r+rr))
-                      ),
-                      Some(ll)
-                    )),
-                    _ => None
-                  }
-                }
-                _ => None
-              }
-            }
-            _ => None
-          }
+      fn run(idx: &mut usize, depth: u8, num: &SnailfishNum) -> u64 {
+        3 * if num.nums[*idx].depth == depth {
+          *idx += 1;
+          num.nums[*idx - 1].value as u64
         } else {
-          match num {
-            SnailfishNum::Literal(_) => {
-              None
-            }
-            SnailfishNum::Pair(l, r) => {
-              let lo = run(l, level+1);
-              let ro = run(r, level+1);
-              match (lo, ro) {
-                (None, None) => None,
-                (Some((l,_)), Some(_)) => Some((SnailfishNum::Pair(Box::new(l), r.clone()), None)), // only take left-most change
-                (None, Some((r,_))) => Some((SnailfishNum::Pair(l.clone(), Box::new(r)), None)),
-                (Some((l,_)), None) => Some((SnailfishNum::Pair(Box::new(l), r.clone()), None)),
-              }
-            }
-          }  
-        };
-        println!("{} {:?} => {:?}", level, num, res);
-        res
+          run(idx, depth + 1, num)
+        } +
+        2 * if num.nums[*idx].depth == depth {
+          *idx += 1;
+          num.nums[*idx - 1].value as u64
+        } else {
+          run(idx, depth + 1, num)
+        }
       }
-      run(self, 0).map(|t| t.0)
+      run(&mut 0, 1, self)
+    }
+    fn add(&mut self, other: &mut SnailfishNum) {
+      self.nums.append(&mut other.nums);
+      for mut elem in self.nums.iter_mut() {
+        elem.depth += 1;
+      }
+    }
+    fn explode(&mut self) -> bool {
+      todo!()
     }
 
-    fn half_up(x: u64) -> u64 {
+    fn half_up(x: u8) -> u8 {
       if x&1 != 0 {
         x / 2 + 1
       } else {
         x / 2
       }
     }
-    fn half_down(x: u64) -> u64 {
+    fn half_down(x: u8) -> u8 {
       x / 2
     }
-    fn split(&self) -> Option<SnailfishNum> {
-      match self {
-        SnailfishNum::Literal(v) => {
-          if *v >= 10 {
-            Some(SnailfishNum::Pair(
-              Box::new(SnailfishNum::Literal(SnailfishNum::half_down(*v))),
-              Box::new(SnailfishNum::Literal(SnailfishNum::half_up(*v))),
-            ))
-          } else {
-            None
-          }
+    fn split(&mut self) -> bool {
+      for i in 0..self.nums.len() {
+        let v = self.nums[i].clone();
+        println!("{} {:?}", i, v);
+        if v.value >= 10 {
+          self.nums[i] = Elem { value: SnailfishNum::half_up(v.value), depth: v.depth + 1 };
+          self.nums.insert(i, Elem { value: SnailfishNum::half_down(v.value), depth: v.depth + 1});
+          return true;
         }
-        SnailfishNum::Pair(l, r) => {
-          let lo = l.split();
-          let ro = r.split();
-          match (lo, ro) {
-            (None, None) => None,
-            (Some(l), Some(r)) => Some(SnailfishNum::Pair(Box::new(l), Box::new(r))),
-            (None, Some(r)) => Some(SnailfishNum::Pair(l.clone(), Box::new(r))),
-            (Some(l), None) => Some(SnailfishNum::Pair(Box::new(l), r.clone())),
-          }
-        }
-      } 
+      }
+      false
     }
-    fn reduce(&mut self) -> SnailfishNum {
-      let mut acc = self.clone();
+    fn reduce(&mut self) {
       loop {
-        if let Some(explode) = acc.explode() {
-          acc = explode;
-          continue;
-        }
-        if let Some(split) = acc.split() {
-          acc = split;
-          continue
-        }
-        return acc;
+        if self.explode() { continue; }
+        if self.split() { continue; }
+        break;
       }
     }
-    fn add_and_reduce(&self, other: &SnailfishNum) -> SnailfishNum {
-      self.add(other).reduce()
+    fn add_and_reduce(&mut self, other: &mut SnailfishNum) {
+      self.add(other);
+      self.reduce();
     }
   }
   mod parser {
@@ -140,27 +107,39 @@ mod puzzle {
     use nom::{
       IResult,
       branch::alt,
-      combinator::map,
-      sequence::{delimited, separated_pair},
-      bytes::complete::tag
+      combinator::{map, recognize, value},
+      character::complete::char
     };
 
-    fn snailfish_elem(input: &str) -> IResult<&str, Box<SnailfishNum>> {
-      alt((
-        map(nom::character::complete::u64, |n| Box::new(SnailfishNum::Literal(n))),
-        snailfish_num
-      ))(input)
+    #[derive(Clone)]
+    enum Action {
+      Inc,
+      Dec,
+      Push(u8),
+      NoOp
     }
+    pub fn parse(input: &str) -> IResult<&str, SnailfishNum> {
+      let mut d = 0;
+      let mut input_c : &str = input.clone();
+      let mut elems: Vec<Elem> = Vec::new();
+      while !input_c.is_empty() {
+        let (n, action) : (&str, Action) = 
+          alt((
+            value(Action::Inc, char('[')),
+            value(Action::Dec, char(']')),
+            value(Action::NoOp, char(',')),
+            map(nom::character::complete::u8, |v| Action::Push(v)),
+          ))(input_c)?;
+        input_c = n;
 
-    pub fn snailfish_num(input: &str) -> IResult<&str, Box<SnailfishNum>> {
-      map(
-        delimited(
-          tag("["), 
-          separated_pair(snailfish_elem, tag(","), snailfish_elem), 
-          tag("]")
-        ),
-        |(l,r)| Box::new(SnailfishNum::Pair(l, r))
-      )(input)
+        match action {
+          Action::Inc => d += 1,
+          Action::Dec => d -= 1,
+          Action::Push(v) => elems.push(Elem { depth: d, value: v }),
+          Action::NoOp => ()
+        }
+      }
+      Ok(("", SnailfishNum { nums: elems }))
     }
   }
 
@@ -184,10 +163,11 @@ mod puzzle {
     #[test]
     fn test_explode() {
       fn test(pre: &str, post: &str) {
-        let pre = SnailfishNum::parse(pre).unwrap();
+        let mut pre = SnailfishNum::parse(pre).unwrap();
         let post = SnailfishNum::parse(post).unwrap();
         println!("exploding\n{}=>{}", pre, post);
-        assert_eq!(pre.explode(), Some(post.clone()), "exploding\n{} =>\n{}", pre, post);
+        assert!(pre.explode());
+        assert_eq!(pre, post.clone(), "exploding\n{} =>\n{}", pre, post);
       }
       test("[[[[[9,8],1],2],3],4]", "[[[[0,9],2],3],4]"); //no regular number left
       test("[7,[6,[5,[4,[3,2]]]]]", "[7,[6,[5,[7,0]]]]"); //no regular number right
@@ -198,10 +178,11 @@ mod puzzle {
 
     #[test]
     fn test_split() {
-      fn test(pre: &str, post: &str) {
-        let pre = SnailfishNum::parse(pre).unwrap();
-        let post = SnailfishNum::parse(post).unwrap();
-        assert_eq!(pre.split(), Some(post));
+      fn test(pre_s: &str, post_s: &str) {
+        let mut pre = SnailfishNum::parse(pre_s).unwrap();
+        let post = SnailfishNum::parse(post_s).unwrap();
+        assert!(pre.split(), "splitting {} {}", pre_s, post_s);
+        assert_eq!(pre, post, "splitting {} {}", pre_s, post_s);
       }
       test("[10,0]", "[[5,5],0]");
       test("[11,0]", "[[5,6],0]");
@@ -210,18 +191,21 @@ mod puzzle {
 
     #[test]
     fn test_reduce() {
+      let mut a = SnailfishNum::parse("[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]").unwrap();
+      a.reduce();
       assert_eq!(
-        SnailfishNum::parse("[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]").unwrap().reduce(), 
+        a,
         SnailfishNum::parse("[[3,[2,[8,0]]],[9,[5,[7,0]]]]").unwrap()
       )
     }
 
     #[test]
     fn test_add_and_reduce() {
-      let a = SnailfishNum::parse("[[[[4,3],4],4],[7,[[8,4],9]]]").unwrap();
-      let b = SnailfishNum::parse("[1,1]").unwrap();
+      let mut a = SnailfishNum::parse("[[[[4,3],4],4],[7,[[8,4],9]]]").unwrap();
+      let mut b = SnailfishNum::parse("[1,1]").unwrap();
+      a.add_and_reduce(&mut b);
       assert_eq!(
-        a.add_and_reduce(&b),
+        a,
         SnailfishNum::parse("[[[[0,7],4],[[7,8],[6,0]]],[8,1]]").unwrap()
       )
     }
