@@ -26,26 +26,32 @@ mod puzzle {
       SnailfishNum::Pair(Box::new(self.clone()), Box::new(other.clone()))
     }
     fn explode(&self) -> Option<SnailfishNum> {
-      fn run(num: &SnailfishNum, level: usize) -> Option<SnailfishNum> {
+      fn run(num: &SnailfishNum, level: usize) -> Option<(SnailfishNum, Option<u64>)> {
         let res = if level >= 3 {
           match num {
             SnailfishNum::Pair(l, r) => {
               match (*l.clone(), *r.clone()) {
                 (SnailfishNum::Literal(l), SnailfishNum::Pair(ll, rr)) => {
                   match (*ll.clone(), *rr.clone()) {
-                    (SnailfishNum::Literal(ll), SnailfishNum::Literal(_)) => Some(SnailfishNum::Pair(
+                    (SnailfishNum::Literal(ll), SnailfishNum::Literal(rr)) => Some((
+                      SnailfishNum::Pair(
                         Box::new(SnailfishNum::Literal(l+ll)), 
                         Box::new(SnailfishNum::Literal(0))
+                      ),
+                      Some(rr)
                       )),
                     _ => None
                   }
                 }
                 (SnailfishNum::Pair(ll, rr), SnailfishNum::Literal(r)) => {
                   match (*ll.clone(), *rr.clone()) {
-                    (SnailfishNum::Literal(_), SnailfishNum::Literal(rr)) => Some(SnailfishNum::Pair(
+                    (SnailfishNum::Literal(ll), SnailfishNum::Literal(rr)) => Some((
+                      SnailfishNum::Pair(
                         Box::new(SnailfishNum::Literal(0)), 
                         Box::new(SnailfishNum::Literal(r+rr))
-                      )),
+                      ),
+                      Some(ll)
+                    )),
                     _ => None
                   }
                 }
@@ -64,9 +70,9 @@ mod puzzle {
               let ro = run(r, level+1);
               match (lo, ro) {
                 (None, None) => None,
-                (Some(l), Some(_)) => Some(SnailfishNum::Pair(Box::new(l), r.clone())), // only take left-most change
-                (None, Some(r)) => Some(SnailfishNum::Pair(l.clone(), Box::new(r))),
-                (Some(l), None) => Some(SnailfishNum::Pair(Box::new(l), r.clone())),
+                (Some((l,_)), Some(_)) => Some((SnailfishNum::Pair(Box::new(l), r.clone()), None)), // only take left-most change
+                (None, Some((r,_))) => Some((SnailfishNum::Pair(l.clone(), Box::new(r)), None)),
+                (Some((l,_)), None) => Some((SnailfishNum::Pair(Box::new(l), r.clone()), None)),
               }
             }
           }  
@@ -74,7 +80,7 @@ mod puzzle {
         println!("{} {:?} => {:?}", level, num, res);
         res
       }
-      run(self, 0)
+      run(self, 0).map(|t| t.0)
     }
 
     fn half_up(x: u64) -> u64 {
