@@ -1,7 +1,7 @@
 mod puzzle {
   use nalgebra as na;
   use petgraph::{
-    graph::{DiGraph, NodeIndex, DefaultIx},
+    graphmap::{DiGraphMap},
     visit::{depth_first_search, DfsEvent, Control}
   };
   use std::collections::HashSet;
@@ -35,18 +35,18 @@ mod puzzle {
     todo!()
   }
 
-  fn scanner_graph(pairs: Vec<(ScannerInput, ScannerInput)>) -> (NodeIndex<DefaultIx>, DiGraph<ScannerInput, Isometry3f>) {
+  fn scanner_graph(pairs: Vec<(ScannerInput, ScannerInput)>) -> DiGraphMap<usize, Isometry3f> {
     todo!()
   }
 
-  fn scanner_pos(graph: &DiGraph<ScannerInput, Isometry3f>, scanner_0: &NodeIndex<DefaultIx>) -> HashSet<HashedPoint3> {
+  fn scanner_pos(graph: &DiGraphMap<usize, Isometry3f>) -> HashSet<HashedPoint3> {
     let mut isometry_stack: Vec<Isometry3f> = Vec::new();
     let mut scanners: HashSet<HashedPoint3> = HashSet::new();
     scanners.insert(HashedPoint3::new(Point3f::origin()));
-    let _: Control<()> = depth_first_search(&graph, Some(*scanner_0), |event| {
+    let _: Control<()> = depth_first_search(&graph, Some(0), |event| {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
-          isometry_stack.push(graph.edge_weight(graph.find_edge(u, v).unwrap()).unwrap().clone()); 
+          isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
           let transformed: Point3f = isometry_stack.iter().fold(Point3f::origin(), |p, iso| *iso * p);
           scanners.insert(HashedPoint3::new(transformed));
         },
@@ -58,14 +58,14 @@ mod puzzle {
     scanners
   }
 
-  fn beacon_pos(graph: &DiGraph<ScannerInput, Isometry3f>, scanner_0: &NodeIndex<DefaultIx>) -> HashSet<HashedPoint3> {
+  fn beacon_pos(graph: &DiGraphMap<usize, Isometry3f>, input: &[ScannerInput]) -> HashSet<HashedPoint3> {
     let mut isometry_stack: Vec<Isometry3f> = Vec::new();
     let mut beacons: HashSet<HashedPoint3> = HashSet::new();
-    let _: Control<()> = depth_first_search(&graph, Some(*scanner_0), |event| {
+    let _: Control<()> = depth_first_search(&graph, Some(0), |event| {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
-          isometry_stack.push(graph.edge_weight(graph.find_edge(u, v).unwrap()).unwrap().clone()); 
-          for beacon in &graph[v].beacon_relative_locations {
+          isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
+          for beacon in &input[v].beacon_relative_locations {
             let transformed: Point3f = isometry_stack.iter().fold(beacon.clone(), |p, iso| *iso * p);
             beacons.insert(HashedPoint3::new(transformed));
           }
@@ -87,11 +87,11 @@ mod puzzle {
     // use an algorithm like Umeyama to align https://zpl.fi/aligning-point-patterns-with-kabsch-umeyama-algorithm/
     // (our problem is less general, since we don't need to support scaling, just translation and rotation, and our rotation is always aligned to axis)
     // maintain a graph from scanner 0 to other scanners to compute final points, edges are Isometry (rotation + translation) between scanners
-    let (scanner_0, graph) = scanner_graph(pairs);
+    let graph = scanner_graph(pairs);
 
     // walk graph from scanner_0 to build unique sets of scanners and beacons
-    let scanners = scanner_pos(&graph, &scanner_0);
-    let beacons = beacon_pos(&graph, &scanner_0);
+    let scanners = scanner_pos(&graph);
+    let beacons = beacon_pos(&graph, input);
 
     Map { scanners: scanners, beacons: beacons }
   }
