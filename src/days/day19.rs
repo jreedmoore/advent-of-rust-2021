@@ -7,18 +7,23 @@ mod puzzle {
   use std::collections::HashSet;
   use itertools::Itertools;
 
+  type Vec3f = na::Vector3<f32>;
   type Point3f = na::Point3<f32>;
   type Isometry3f = na::Isometry3<f32>;
 
-  #[derive(Hash, PartialEq, Eq)]
+  #[derive(Debug, Hash, PartialEq, Eq)]
   pub struct HashedPoint3 {
     x: i32,
     y: i32,
     z: i32,
   }
   impl HashedPoint3 {
-    fn new(p: Point3f) -> HashedPoint3 {
-      todo!();
+    fn new(p: &Point3f) -> HashedPoint3 {
+      HashedPoint3 {
+        x: p.coords.x as i32,
+        y: p.coords.y as i32,
+        z: p.coords.z as i32,
+      }
     }
   }
 
@@ -32,7 +37,14 @@ mod puzzle {
     pub scanners: HashSet<HashedPoint3>,
   }
 
-  fn likely_pairs(input: &[ScannerInput]) -> Vec<(usize, usize)> {
+
+  pub struct CorrespondingPairs {
+    a: usize,
+    b: usize,
+    point_distances: HashSet<i32>,
+  }
+
+  fn likely_pairs(input: &[ScannerInput]) -> Vec<CorrespondingPairs> {
     let distance_sets: Vec<HashSet<i32>> = 
       input.iter()
         .map(|input| input.beacon_relative_locations.iter().tuple_combinations().map(|(a,b)| (a-b).norm() as i32).collect::<HashSet<i32>>())
@@ -40,10 +52,11 @@ mod puzzle {
 
     distance_sets.iter().enumerate().tuple_combinations()
       .filter_map(|((li, ls),(ri, rs))| {
-        let intersection_size = ls.intersection(rs).count();
+        let intersection_set = ls.intersection(rs).cloned().collect::<HashSet<i32>>();
+        let intersection_size = intersection_set.len();
         // 12 choose 2 == 66
         if intersection_size >= 66 && li != ri {
-          Some((li, ri))
+          Some(CorrespondingPairs { a: li, b: ri, point_distances: intersection_set })
         } else {
           None
         }
@@ -51,20 +64,48 @@ mod puzzle {
       .collect()
   }
 
-  fn scanner_graph(pairs: Vec<(usize, usize)>, input: &[ScannerInput]) -> DiGraphMap<usize, Isometry3f> {
+  fn centroid(ps: &[Point3f]) -> Point3f {
+    let v: Vec3f = ps.iter().fold(na::zero(), |acc, p| acc + p.coords);
+    Point3f::from(v / (ps.len() as f32))
+  }
+
+  fn align_points(a: &[Point3f], b: &[Point3f]) -> Isometry3f {
+    let centroid_a = centroid(a);
+    let centroid_b = centroid(b);
+
+    let translation = na::Translation3::from(centroid_b - centroid_a);
+    let mut isometry = Isometry3f::identity();
+    isometry.append_translation_mut(&translation);
+    isometry
+  }
+
+  // produce Isometry aligning points of a onto point of b
+  fn align_pair(pair: &CorrespondingPairs, input_a: &ScannerInput, input_b: &ScannerInput) -> Option<Isometry3f> {
+    // filter corresponding points. if <= 12 return None
+    todo!()
+  }
+
+  fn scanner_graph(pairs: Vec<CorrespondingPairs>, input: &[ScannerInput]) -> DiGraphMap<usize, Isometry3f> {
+    // for each likely pair
+    // filter corresponding points from pair to produce P and Q point sets
+    // SVD to find rotation and translation matrix (gnarly iterative process)
+    //   https://zpl.fi/aligning-point-patterns-with-kabsch-umeyama-algorithm/
+    //   https://igl.ethz.ch/projects/ARAP/svd_rot.pdf 
+    // are there any examples of how this might fail? what would that look like?
+    // maybe compute points after transform and verify 12 or more overlaps (in i32?)
     todo!()
   }
 
   fn scanner_pos(graph: &DiGraphMap<usize, Isometry3f>) -> HashSet<HashedPoint3> {
     let mut isometry_stack: Vec<Isometry3f> = Vec::new();
     let mut scanners: HashSet<HashedPoint3> = HashSet::new();
-    scanners.insert(HashedPoint3::new(Point3f::origin()));
+    scanners.insert(HashedPoint3::new(&Point3f::origin()));
     let _: Control<()> = depth_first_search(&graph, Some(0), |event| {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
-          isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
+          isometry_stack.push(graph.edge_weight(u,v).unwrap().inverse());
           let transformed: Point3f = isometry_stack.iter().fold(Point3f::origin(), |p, iso| *iso * p);
-          scanners.insert(HashedPoint3::new(transformed));
+          scanners.insert(HashedPoint3::new(&transformed));
         },
         DfsEvent::Finish(_, _) => { isometry_stack.pop(); () },
         _ => (),
@@ -80,10 +121,10 @@ mod puzzle {
     let _: Control<()> = depth_first_search(&graph, Some(0), |event| {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
-          isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
+          isometry_stack.push(graph.edge_weight(u,v).unwrap().inverse());
           for beacon in &input[v].beacon_relative_locations {
             let transformed: Point3f = isometry_stack.iter().fold(beacon.clone(), |p, iso| *iso * p);
-            beacons.insert(HashedPoint3::new(transformed));
+            beacons.insert(HashedPoint3::new(&transformed));
           }
         },
         DfsEvent::Finish(_, _) => { isometry_stack.pop(); () },
@@ -123,7 +164,7 @@ mod puzzle {
       combinator::map,
       sequence::{terminated, tuple, delimited},
       multi::many1,
-      character::complete::{char, multispace0, multispace1},
+      character::complete::{char, multispace0},
       bytes::complete::tag
     };
     /// A combinator that takes a parser `inner` and produces a parser that also consumes both leading and 
@@ -179,8 +220,58 @@ mod puzzle {
     #[test]
     fn test_likely_pairs() {
       let pairs = likely_pairs(&parser::puzzle_input(EXAMPLE).unwrap().1);
-      assert_eq!(pairs, vec![(0,1), (1,3), (1,4), (2,4)]);
+      assert_eq!(pairs.iter().map(|cp| (cp.a, cp.b)).collect::<Vec<(usize,usize)>>(), vec![(0,1), (1,3), (1,4), (2,4)]);
     }
+
+    #[test]
+    fn test_align_pair() {
+      let input = parse(EXAMPLE).unwrap();
+      let pairs = likely_pairs(&input);
+      let translation = na::Translation3::from(Vec3f::new(68.0,-1246.0,-43.0));
+      let mut isometry = Isometry3f::identity();
+      isometry.append_translation_mut(&translation);
+      assert_eq!(align_pair(&pairs[0], &input[0], &input[1]), Some(isometry))
+    }
+
+    #[test]
+    fn test_align_translated_points() {
+      let a = vec![
+        Point3f::new(0.0, 2.0, 0.0),
+        Point3f::new(4.0, 1.0, 0.0),
+        Point3f::new(3.0, 3.0, 0.0),
+      ];
+      let b = vec![
+        Point3f::new(-1.0, -1.0, 0.0),
+        Point3f::new(-5.0, 0.0, 0.0),
+        Point3f::new(-2.0, 1.0, 0.0),
+      ];
+
+      let translation = na::Translation3::from(Vec3f::new(-5.0,-2.0,0.0));
+      let mut isometry = Isometry3f::identity();
+      isometry.append_translation_mut(&translation);
+      assert_eq!(align_points(&a, &b), isometry);
+
+      let scanner_0 = ScannerInput { id: 0, beacon_relative_locations: a.clone() };
+      let scanner_1 = ScannerInput { id: 1, beacon_relative_locations: b.clone() };
+      let input = vec![scanner_0, scanner_1];
+
+      let mut graph: DiGraphMap<usize, Isometry3f> = DiGraphMap::new();
+      graph.add_edge(0, 1, isometry);
+
+      let scanners: HashSet<HashedPoint3> = vec![
+        Point3f::new(0.0,0.0,0.0),
+        Point3f::new(5.0,2.0,0.0)
+      ].iter().map(|p| HashedPoint3::new(p)).collect();
+      
+      assert_eq!(scanner_pos(&graph), scanners);
+
+      let beacons: HashSet<HashedPoint3> =
+        a.iter().map(|p| HashedPoint3::new(p)).collect();
+
+      assert_eq!(beacon_pos(&graph, &input), beacons);
+    }
+
+    // TODO (use example w/ all scanner 0 to test rotation)
   }
 
   #[cfg(test)]
