@@ -7,6 +7,8 @@ mod puzzle {
   use std::collections::HashSet;
   use itertools::Itertools;
 
+  use crate::util::intersect::count_intersect;
+
   type Vec3f = na::Vector3<f32>;
   type Point3f = na::Point3<f32>;
   type Isometry3f = na::Isometry3<f32>;
@@ -24,6 +26,9 @@ mod puzzle {
         y: p.coords.y.round() as i32,
         z: p.coords.z.round() as i32,
       }
+    }
+    fn set_from_slice(ps: &[Point3f]) -> HashSet<HashedPoint3> {
+      ps.iter().map(|p| HashedPoint3::new(p)).collect()
     }
   }
 
@@ -102,12 +107,42 @@ mod puzzle {
     Isometry3f::from_parts(translation, na::UnitQuaternion::from_rotation_matrix(&rotation))
   }
 
+  fn distance_matrix(ps: &[Point3f]) -> na::DMatrix<i32> {
+    let n = ps.len();
+    let mut mat = na::DMatrix::zeros(n, n);
+    for i in 0..n {
+      for j in 0..n {
+        mat[(i,j)] = (&ps[i] - &ps[j]).norm().round() as i32;
+      }
+    }
+    mat
+  }
+
   fn corresponding_points(a: &[Point3f], b: &[Point3f]) -> Vec<(Point3f, Point3f)> {
     // compute for a and b dist(u,v)
-    // fn count_matching(pa, pb) -> count(a_dist.col(pa) == b_dist.col(pb)) (this is a_dist.col(pa).to_set().intersection(b_dist.col(pb)).count())
-    // include (pa,pb) if count_matching(pa, pb) != 0?
-    // alternate might be a majority guess?
-    todo!()
+    let a_dist = distance_matrix(a);
+    let b_dist = distance_matrix(b);
+
+    let mut pairs: Vec<(Point3f, Point3f)> = Vec::new();
+    let mut b_used: HashSet<usize> = HashSet::new();
+    for (ia, pa) in a.iter().enumerate() {
+      for (ib, pb) in b.iter().enumerate() {
+        if b_used.contains(&ib) { continue; }
+        let ac = a_dist.column(ia).iter().cloned().sorted().collect_vec();
+        let bc = b_dist.column(ib).iter().cloned().sorted().collect_vec();
+
+        let possible_matches = std::cmp::min(ac.len(), bc.len());
+        let matches = count_intersect(&ac, &bc);
+
+        if matches > possible_matches / 2 || matches >= 12 {
+          b_used.insert(ib);
+          pairs.push((pa.clone(),pb.clone()));
+          break;
+        }
+      }
+    }
+
+    pairs
   }
 
   fn align_pair(pair: &CorrespondingPairs, input_a: &[Point3f], input_b: &[Point3f]) -> Option<Isometry3f> {
@@ -288,7 +323,7 @@ mod puzzle {
       let pairs = corresponding_points(&input[0].beacon_relative_locations, &input[1].beacon_relative_locations);
       let (a,b): (Vec<_>, Vec<_>) = pairs.iter().cloned().unzip();
 
-      assert_eq!(a, vec![
+      assert_eq!(HashedPoint3::set_from_slice(&a), HashedPoint3::set_from_slice(&vec![
         Point3f::new(-618.0,-824.0,-621.0),
         Point3f::new(-537.0,-823.0,-458.0),
         Point3f::new(-447.0,-329.0,318.0),
@@ -301,8 +336,8 @@ mod puzzle {
         Point3f::new(-345.0,-311.0,381.0),
         Point3f::new(459.0,-707.0,401.0),
         Point3f::new(-485.0,-357.0,347.0),
-      ]);
-      assert_eq!(b, vec![
+      ]));
+      assert_eq!(HashedPoint3::set_from_slice(&b), HashedPoint3::set_from_slice(&vec![
         Point3f::new(686.0,422.0,578.0),
         Point3f::new(605.0,423.0,415.0),
         Point3f::new(515.0,917.0,-361.0),
@@ -315,7 +350,7 @@ mod puzzle {
         Point3f::new(413.0,935.0,-424.0),
         Point3f::new(-391.0,539.0,-444.0),
         Point3f::new(553.0,889.0,-390.0),
-      ])
+      ]))
     }
 
     #[test]
@@ -426,18 +461,6 @@ mod puzzle {
 
       assert_eq!(beacon_pos(&graph, &input), beacons);
     }
-
-    const ROTATED_EXAMPLE: &'static str = include_str!("examples/day19-rotated.txt");
-    #[test]
-    fn test_rotated_examples() {
-      let input = parse(ROTATED_EXAMPLE).unwrap();
-
-      todo!();
-    }
-
-    // TODO full map example
-    // include_str! and parse points for beacon_pos
-    // manually copy over scanner_pos into vec! (into set)
   }
 
   #[cfg(test)]

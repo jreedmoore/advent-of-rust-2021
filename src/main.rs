@@ -1,5 +1,6 @@
 #![feature(hash_drain_filter)]
 mod days;
+mod util;
 use days::*;
 
 use std::{fs, str};
