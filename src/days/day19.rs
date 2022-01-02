@@ -20,9 +20,9 @@ mod puzzle {
   impl HashedPoint3 {
     fn new(p: &Point3f) -> HashedPoint3 {
       HashedPoint3 {
-        x: p.coords.x as i32,
-        y: p.coords.y as i32,
-        z: p.coords.z as i32,
+        x: p.coords.x.round() as i32,
+        y: p.coords.y.round() as i32,
+        z: p.coords.z.round() as i32,
       }
     }
   }
@@ -69,20 +69,70 @@ mod puzzle {
     Point3f::from(v / (ps.len() as f32))
   }
 
+  // produce Isometry aligning points of a onto point of b
   fn align_points(a: &[Point3f], b: &[Point3f]) -> Isometry3f {
+    // https://zpl.fi/aligning-point-patterns-with-kabsch-umeyama-algorithm/
+    if a.len() != b.len() {
+      // assuming that a[i] maps to b[i]
+      // (mapping needs to be established before this call!)
+      panic!("align_points requires point sets to match in length");
+    }
+    let n = a.len();
     let centroid_a = centroid(a);
     let centroid_b = centroid(b);
 
-    let translation = na::Translation3::from(centroid_b - centroid_a);
-    let mut isometry = Isometry3f::identity();
-    isometry.append_translation_mut(&translation);
-    isometry
+    // Most descriptions of this algorithm are written in terms of data in rows,
+    // but nalgebra::geometry makes data in rows more convenient
+    let a_variance = na::Matrix3xX::from_columns(&a.iter().map(|pa| pa - centroid_a).collect_vec());
+    let b_variance = na::Matrix3xX::from_columns(&b.iter().map(|pb| pb - centroid_b).collect_vec());
+
+    let covariances = a_variance * b_variance.transpose() / (n as f32);
+    let svd = na::linalg::SVD::new(covariances.clone(), true, true);
+    let u = svd.u.unwrap();
+    let d = svd.singular_values;
+    let v_t = svd.v_t.unwrap();
+
+    let d = f32::signum(u.determinant() * v_t.determinant());
+    let s = na::Matrix3::from_diagonal(&Vec3f::new(1.0, 1.0, d));
+
+    let r = u*s*v_t;
+    let rotation = na::Rotation3::from_matrix(&r.fixed_slice::<3,3>(0,0).into());
+    let translation = na::Translation3::from(centroid_a - (rotation * centroid_b));
+
+    Isometry3f::from_parts(translation, na::UnitQuaternion::from_rotation_matrix(&rotation))
   }
 
-  // produce Isometry aligning points of a onto point of b
-  fn align_pair(pair: &CorrespondingPairs, input_a: &ScannerInput, input_b: &ScannerInput) -> Option<Isometry3f> {
-    // filter corresponding points. if <= 12 return None
+  fn corresponding_points(a: &[Point3f], b: &[Point3f]) -> Vec<(Point3f, Point3f)> {
+    // compute for a and b dist(u,v)
+    // fn count_matching(pa, pb) -> count(a_dist.col(pa) == b_dist.col(pb)) (this is a_dist.col(pa).to_set().intersection(b_dist.col(pb)).count())
+    // include (pa,pb) if count_matching(pa, pb) != 0?
+    // alternate might be a majority guess?
     todo!()
+  }
+
+  fn align_pair(pair: &CorrespondingPairs, input_a: &[Point3f], input_b: &[Point3f]) -> Option<Isometry3f> {
+    // filter corresponding points. if <= 12 return None
+    let a_ps =
+      input_a.iter()
+        .filter(|a| {
+          input_b.iter().filter(|b| pair.point_distances.contains(&((*a-*b).norm() as i32))).count() >= 12
+        })
+        .cloned()
+        .collect_vec();
+    let b_ps =
+      input_b.iter()
+        .filter(|b| {
+          input_a.iter().filter(|a| pair.point_distances.contains(&((*a-*b).norm() as i32))).count() >= 12
+        })
+        .cloned()
+        .collect_vec();
+
+    if a_ps.len() >= 12 {
+      println!("a {:?} b {:?}", a_ps.len(), b_ps.len());
+      Some(align_points(&a_ps, &b_ps))
+    } else {
+      None
+    }
   }
 
   fn scanner_graph(pairs: Vec<CorrespondingPairs>, input: &[ScannerInput]) -> DiGraphMap<usize, Isometry3f> {
@@ -103,7 +153,7 @@ mod puzzle {
     let _: Control<()> = depth_first_search(&graph, Some(0), |event| {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
-          isometry_stack.push(graph.edge_weight(u,v).unwrap().inverse());
+          isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
           let transformed: Point3f = isometry_stack.iter().fold(Point3f::origin(), |p, iso| *iso * p);
           scanners.insert(HashedPoint3::new(&transformed));
         },
@@ -121,7 +171,7 @@ mod puzzle {
     let _: Control<()> = depth_first_search(&graph, Some(0), |event| {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
-          isometry_stack.push(graph.edge_weight(u,v).unwrap().inverse());
+          isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
           for beacon in &input[v].beacon_relative_locations {
             let transformed: Point3f = isometry_stack.iter().fold(beacon.clone(), |p, iso| *iso * p);
             beacons.insert(HashedPoint3::new(&transformed));
@@ -227,14 +277,122 @@ mod puzzle {
     fn test_align_pair() {
       let input = parse(EXAMPLE).unwrap();
       let pairs = likely_pairs(&input);
-      let translation = na::Translation3::from(Vec3f::new(68.0,-1246.0,-43.0));
-      let mut isometry = Isometry3f::identity();
-      isometry.append_translation_mut(&translation);
-      assert_eq!(align_pair(&pairs[0], &input[0], &input[1]), Some(isometry))
+      let isometry = align_pair(&pairs[0], &input[0].beacon_relative_locations, &input[1].beacon_relative_locations).unwrap();
+
+      assert_eq!(HashedPoint3::new(&(isometry * Point3f::origin())), HashedPoint3::new(&Point3f::new(68.0,-1246.0,-43.0)));
     }
 
     #[test]
-    fn test_align_translated_points() {
+    fn test_corresponding_points() {
+      let input = parse(EXAMPLE).unwrap();
+      let pairs = corresponding_points(&input[0].beacon_relative_locations, &input[1].beacon_relative_locations);
+      let (a,b): (Vec<_>, Vec<_>) = pairs.iter().cloned().unzip();
+
+      assert_eq!(a, vec![
+        Point3f::new(-618.0,-824.0,-621.0),
+        Point3f::new(-537.0,-823.0,-458.0),
+        Point3f::new(-447.0,-329.0,318.0),
+        Point3f::new(404.0,-588.0,-901.0),
+        Point3f::new(544.0,-627.0,-890.0),
+        Point3f::new(528.0,-643.0,409.0),
+        Point3f::new(-661.0,-816.0,-575.0),
+        Point3f::new(390.0,-675.0,-793.0),
+        Point3f::new(423.0,-701.0,434.0),
+        Point3f::new(-345.0,-311.0,381.0),
+        Point3f::new(459.0,-707.0,401.0),
+        Point3f::new(-485.0,-357.0,347.0),
+      ]);
+      assert_eq!(b, vec![
+        Point3f::new(686.0,422.0,578.0),
+        Point3f::new(605.0,423.0,415.0),
+        Point3f::new(515.0,917.0,-361.0),
+        Point3f::new(-336.0,658.0,858.0),
+        Point3f::new(-476.0,619.0,847.0),
+        Point3f::new(-460.0,603.0,-452.0),
+        Point3f::new(729.0,430.0,532.0),
+        Point3f::new(-322.0,571.0,750.0),
+        Point3f::new(-355.0,545.0,-477.0),
+        Point3f::new(413.0,935.0,-424.0),
+        Point3f::new(-391.0,539.0,-444.0),
+        Point3f::new(553.0,889.0,-390.0),
+      ])
+    }
+
+    #[test]
+    fn test_corresponding_points_translated() {
+      let a = vec![
+        Point3f::new(0.0, 2.0, 0.0),
+        Point3f::new(4.0, 1.0, 0.0),
+        Point3f::new(3.0, 3.0, 0.0),
+      ];
+      let translation = na::Translation3::from(Vec3f::new(-5.0,-2.0,0.0));
+      let b = a.iter().map(|p| translation * p).collect_vec();
+
+      let (aa, bb): (Vec<_>, Vec<_>) = corresponding_points(&a, &b).iter().cloned().unzip();
+
+      assert_eq!(aa, a);
+      assert_eq!(bb, b);
+    }
+
+    #[test]
+    fn test_align_points_example() {
+        let a = vec![
+        Point3f::new(-618.0,-824.0,-621.0),
+        Point3f::new(-537.0,-823.0,-458.0),
+        Point3f::new(-447.0,-329.0,318.0),
+        Point3f::new(404.0,-588.0,-901.0),
+        Point3f::new(544.0,-627.0,-890.0),
+        Point3f::new(528.0,-643.0,409.0),
+        Point3f::new(-661.0,-816.0,-575.0),
+        Point3f::new(390.0,-675.0,-793.0),
+        Point3f::new(423.0,-701.0,434.0),
+        Point3f::new(-345.0,-311.0,381.0),
+        Point3f::new(459.0,-707.0,401.0),
+        Point3f::new(-485.0,-357.0,347.0),
+      ];
+      let b = vec![
+        Point3f::new(686.0,422.0,578.0),
+        Point3f::new(605.0,423.0,415.0),
+        Point3f::new(515.0,917.0,-361.0),
+        Point3f::new(-336.0,658.0,858.0),
+        Point3f::new(-476.0,619.0,847.0),
+        Point3f::new(-460.0,603.0,-452.0),
+        Point3f::new(729.0,430.0,532.0),
+        Point3f::new(-322.0,571.0,750.0),
+        Point3f::new(-355.0,545.0,-477.0),
+        Point3f::new(413.0,935.0,-424.0),
+        Point3f::new(-391.0,539.0,-444.0),
+        Point3f::new(553.0,889.0,-390.0),
+      ];
+
+      let isometry = align_points(&a, &b);
+      assert_eq!(HashedPoint3::new(&(isometry * Point3f::origin())), HashedPoint3::new(&Point3f::new(68.0,-1246.0,-43.0)));
+    }
+
+    #[test]
+    fn test_corresponding_points_translated_with_unique() {
+      let a_common = vec![
+        Point3f::new(0.0, 2.0, 0.0),
+        Point3f::new(4.0, 1.0, 0.0),
+        Point3f::new(3.0, 3.0, 0.0),
+      ];
+      let translation = na::Translation3::from(Vec3f::new(-5.0,-2.0,0.0));
+      let b_common = a_common.iter().map(|p| translation * p).collect_vec();
+
+      let mut a = a_common.clone();
+      let mut b = b_common.clone();
+
+      a.push(Point3f::new(-1.0,-1.0,-1.0));
+      b.push(Point3f::new(-3.0,-3.0,-3.0));
+
+      let (aa, bb): (Vec<_>, Vec<_>) = corresponding_points(&a, &b).iter().cloned().unzip();
+
+      assert_eq!(aa, a_common);
+      assert_eq!(bb, b_common);
+    }
+
+    #[test]
+    fn test_align_points_translated() {
       let a = vec![
         Point3f::new(0.0, 2.0, 0.0),
         Point3f::new(4.0, 1.0, 0.0),
@@ -246,10 +404,8 @@ mod puzzle {
         Point3f::new(-2.0, 1.0, 0.0),
       ];
 
-      let translation = na::Translation3::from(Vec3f::new(-5.0,-2.0,0.0));
-      let mut isometry = Isometry3f::identity();
-      isometry.append_translation_mut(&translation);
-      assert_eq!(align_points(&a, &b), isometry);
+      let isometry = align_points(&a, &b);
+      assert_eq!(isometry * Point3f::origin(), Point3f::new(5.0, 2.0, 0.0));
 
       let scanner_0 = ScannerInput { id: 0, beacon_relative_locations: a.clone() };
       let scanner_1 = ScannerInput { id: 1, beacon_relative_locations: b.clone() };
@@ -271,148 +427,21 @@ mod puzzle {
       assert_eq!(beacon_pos(&graph, &input), beacons);
     }
 
-    // TODO (use example w/ all scanner 0 to test rotation)
+    const ROTATED_EXAMPLE: &'static str = include_str!("examples/day19-rotated.txt");
+    #[test]
+    fn test_rotated_examples() {
+      let input = parse(ROTATED_EXAMPLE).unwrap();
+
+      todo!();
+    }
+
+    // TODO full map example
+    // include_str! and parse points for beacon_pos
+    // manually copy over scanner_pos into vec! (into set)
   }
 
   #[cfg(test)]
-  pub const EXAMPLE: &'static str = r#"
---- scanner 0 ---
-404,-588,-901
-528,-643,409
--838,591,734
-390,-675,-793
--537,-823,-458
--485,-357,347
--345,-311,381
--661,-816,-575
--876,649,763
--618,-824,-621
-553,345,-567
-474,580,667
--447,-329,318
--584,868,-557
-544,-627,-890
-564,392,-477
-455,729,728
--892,524,684
--689,845,-530
-423,-701,434
-7,-33,-71
-630,319,-379
-443,580,662
--789,900,-551
-459,-707,401
-
---- scanner 1 ---
-686,422,578
-605,423,415
-515,917,-361
--336,658,858
-95,138,22
--476,619,847
--340,-569,-846
-567,-361,727
--460,603,-452
-669,-402,600
-729,430,532
--500,-761,534
--322,571,750
--466,-666,-811
--429,-592,574
--355,545,-477
-703,-491,-529
--328,-685,520
-413,935,-424
--391,539,-444
-586,-435,557
--364,-763,-893
-807,-499,-711
-755,-354,-619
-553,889,-390
-
---- scanner 2 ---
-649,640,665
-682,-795,504
--784,533,-524
--644,584,-595
--588,-843,648
--30,6,44
--674,560,763
-500,723,-460
-609,671,-379
--555,-800,653
--675,-892,-343
-697,-426,-610
-578,704,681
-493,664,-388
--671,-858,530
--667,343,800
-571,-461,-707
--138,-166,112
--889,563,-600
-646,-828,498
-640,759,510
--630,509,768
--681,-892,-333
-673,-379,-804
--742,-814,-386
-577,-820,562
-
---- scanner 3 ---
--589,542,597
-605,-692,669
--500,565,-823
--660,373,557
--458,-679,-417
--488,449,543
--626,468,-788
-338,-750,-386
-528,-832,-391
-562,-778,733
--938,-730,414
-543,643,-506
--524,371,-870
-407,773,750
--104,29,83
-378,-903,-323
--778,-728,485
-426,699,580
--438,-605,-362
--469,-447,-387
-509,732,623
-647,635,-688
--868,-804,481
-614,-800,639
-595,780,-596
-
---- scanner 4 ---
-727,592,562
--293,-554,779
-441,611,-461
--714,465,-776
--743,427,-804
--660,-479,-426
-832,-632,460
-927,-485,-438
-408,393,-506
-466,436,-512
-110,16,151
--258,-428,682
--393,719,612
--211,-452,876
-808,-476,-593
--575,615,604
--485,667,467
--680,325,-822
--627,-443,-432
-872,-547,-609
-833,512,582
-807,604,487
-839,-516,451
-891,-625,532
--652,-548,-490
-30,-46,-14
-  "#;
+  pub const EXAMPLE: &'static str = include_str!("examples/day19-full.txt");
 }
 
 pub fn part_one(input: &str) -> Option<u64> {
