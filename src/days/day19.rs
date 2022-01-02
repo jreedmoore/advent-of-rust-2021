@@ -5,6 +5,7 @@ mod puzzle {
     visit::{depth_first_search, DfsEvent, Control}
   };
   use std::collections::HashSet;
+  use itertools::Itertools;
 
   type Point3f = na::Point3<f32>;
   type Isometry3f = na::Isometry3<f32>;
@@ -31,11 +32,26 @@ mod puzzle {
     pub scanners: HashSet<HashedPoint3>,
   }
 
-  fn likely_pairs(input: &[ScannerInput]) -> Vec<(ScannerInput, ScannerInput)> {
-    todo!()
+  fn likely_pairs(input: &[ScannerInput]) -> Vec<(usize, usize)> {
+    let distance_sets: Vec<HashSet<i32>> = 
+      input.iter()
+        .map(|input| input.beacon_relative_locations.iter().tuple_combinations().map(|(a,b)| (a-b).norm() as i32).collect::<HashSet<i32>>())
+        .collect();
+
+    distance_sets.iter().enumerate().tuple_combinations()
+      .filter_map(|((li, ls),(ri, rs))| {
+        let intersection_size = ls.intersection(rs).count();
+        // 12 choose 2 == 66
+        if intersection_size >= 66 && li != ri {
+          Some((li, ri))
+        } else {
+          None
+        }
+      })
+      .collect()
   }
 
-  fn scanner_graph(pairs: Vec<(ScannerInput, ScannerInput)>) -> DiGraphMap<usize, Isometry3f> {
+  fn scanner_graph(pairs: Vec<(usize, usize)>, input: &[ScannerInput]) -> DiGraphMap<usize, Isometry3f> {
     todo!()
   }
 
@@ -78,6 +94,7 @@ mod puzzle {
     beacons
   }
 
+  // assumes input is sorted, i.e. input[i].id == i
   pub fn build_map(input: &[ScannerInput]) -> Map {
     // lots of inspiration from this thread: https://www.reddit.com/r/adventofcode/comments/rjpf7f/2021_day_19_solutions/
 
@@ -87,7 +104,7 @@ mod puzzle {
     // use an algorithm like Umeyama to align https://zpl.fi/aligning-point-patterns-with-kabsch-umeyama-algorithm/
     // (our problem is less general, since we don't need to support scaling, just translation and rotation, and our rotation is always aligned to axis)
     // maintain a graph from scanner 0 to other scanners to compute final points, edges are Isometry (rotation + translation) between scanners
-    let graph = scanner_graph(pairs);
+    let graph = scanner_graph(pairs, input);
 
     // walk graph from scanner_0 to build unique sets of scanners and beacons
     let scanners = scanner_pos(&graph);
@@ -96,7 +113,63 @@ mod puzzle {
     Map { scanners: scanners, beacons: beacons }
   }
   pub fn parse(input: &str) -> Option<Vec<ScannerInput>> {
-    todo!()
+    parser::puzzle_input(input).ok().map(|t| t.1)
+  }
+  mod parser {
+    use super::*;
+    use nom::{
+      IResult,
+      error::ParseError,
+      combinator::map,
+      sequence::{terminated, tuple, delimited},
+      multi::many1,
+      character::complete::{char, multispace0, multispace1},
+      bytes::complete::tag
+    };
+    /// A combinator that takes a parser `inner` and produces a parser that also consumes both leading and 
+    /// trailing whitespace, returning the output of `inner`.
+    fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
+      where
+      F: Fn(&'a str) -> IResult<&'a str, O, E>,
+    {
+      delimited(
+        multispace0,
+        inner,
+        multispace0
+      )
+    }
+    fn scanner_line(input: &str) -> IResult<&str, usize> {
+      map(
+        delimited(
+          ws(tag("--- scanner")),
+          nom::character::complete::u64,
+          ws(tag("---"))
+        ),
+        |id| id as usize
+      )(input)
+    }
+    fn beacon_position(input: &str) -> IResult<&str, Point3f> {
+      map(
+        tuple((
+          terminated(nom::character::complete::i32, char(',')),
+          terminated(nom::character::complete::i32, char(',')),
+          nom::character::complete::i32,
+       )),
+       |(x,y,z)| Point3f::new(x as f32, y as f32, z as f32)
+      )(input)
+    }
+    fn scanner_input(input: &str) -> IResult<&str, ScannerInput> {
+      map(
+        tuple((
+          ws(scanner_line),
+          many1(ws(beacon_position))
+        )), 
+        |(id, beacons)| ScannerInput {id:id, beacon_relative_locations: beacons}
+      )(input)
+    }
+    pub fn puzzle_input(input: &str) -> IResult<&str, Vec<ScannerInput>> {
+      many1(ws(scanner_input))(input)
+    }
   }
 
   #[cfg(test)]
@@ -105,9 +178,8 @@ mod puzzle {
 
     #[test]
     fn test_likely_pairs() {
-      let (l, r) = &likely_pairs(&parse(EXAMPLE).unwrap())[0];
-      assert_eq!(l.id, 0);
-      assert_eq!(r.id, 1);
+      let pairs = likely_pairs(&parser::puzzle_input(EXAMPLE).unwrap().1);
+      assert_eq!(pairs, vec![(0,1), (1,3), (1,4), (2,4)]);
     }
   }
 
