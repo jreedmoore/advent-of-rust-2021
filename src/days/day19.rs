@@ -27,13 +27,13 @@ mod puzzle {
         z: p.coords.z.round() as i32,
       }
     }
+    #[cfg(test)]
     fn set_from_slice(ps: &[Point3f]) -> HashSet<HashedPoint3> {
       ps.iter().map(|p| HashedPoint3::new(p)).collect()
     }
   }
 
   pub struct ScannerInput {
-    id: usize,
     beacon_relative_locations: Vec<Point3f>
   }
 
@@ -46,7 +46,6 @@ mod puzzle {
   pub struct CorrespondingPairs {
     a: usize,
     b: usize,
-    point_distances: HashSet<i32>,
   }
 
   fn likely_pairs(input: &[ScannerInput]) -> Vec<CorrespondingPairs> {
@@ -61,7 +60,7 @@ mod puzzle {
         let intersection_size = intersection_set.len();
         // 12 choose 2 == 66
         if intersection_size >= 66 && li != ri {
-          Some(CorrespondingPairs { a: li, b: ri, point_distances: intersection_set })
+          Some(CorrespondingPairs { a: li, b: ri })
         } else {
           None
         }
@@ -94,7 +93,7 @@ mod puzzle {
     let covariances = a_variance * b_variance.transpose() / (n as f32);
     let svd = na::linalg::SVD::new(covariances.clone(), true, true);
     let u = svd.u.unwrap();
-    let d = svd.singular_values;
+    //let d = svd.singular_values;
     let v_t = svd.v_t.unwrap();
 
     let d = f32::signum(u.determinant() * v_t.determinant());
@@ -145,25 +144,11 @@ mod puzzle {
     pairs
   }
 
-  fn align_pair(pair: &CorrespondingPairs, input_a: &[Point3f], input_b: &[Point3f]) -> Option<Isometry3f> {
-    // filter corresponding points. if <= 12 return None
-    let a_ps =
-      input_a.iter()
-        .filter(|a| {
-          input_b.iter().filter(|b| pair.point_distances.contains(&((*a-*b).norm() as i32))).count() >= 12
-        })
-        .cloned()
-        .collect_vec();
-    let b_ps =
-      input_b.iter()
-        .filter(|b| {
-          input_a.iter().filter(|a| pair.point_distances.contains(&((*a-*b).norm() as i32))).count() >= 12
-        })
-        .cloned()
-        .collect_vec();
-
-    if a_ps.len() >= 12 {
-      println!("a {:?} b {:?}", a_ps.len(), b_ps.len());
+  fn align_pair(input_a: &[Point3f], input_b: &[Point3f]) -> Option<Isometry3f> {
+    let pairs = corresponding_points(input_a, input_b);
+    
+    if pairs.len() >= 12 {
+      let (a_ps, b_ps): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
       Some(align_points(&a_ps, &b_ps))
     } else {
       None
@@ -171,14 +156,15 @@ mod puzzle {
   }
 
   fn scanner_graph(pairs: Vec<CorrespondingPairs>, input: &[ScannerInput]) -> DiGraphMap<usize, Isometry3f> {
-    // for each likely pair
-    // filter corresponding points from pair to produce P and Q point sets
-    // SVD to find rotation and translation matrix (gnarly iterative process)
-    //   https://zpl.fi/aligning-point-patterns-with-kabsch-umeyama-algorithm/
-    //   https://igl.ethz.ch/projects/ARAP/svd_rot.pdf 
-    // are there any examples of how this might fail? what would that look like?
-    // maybe compute points after transform and verify 12 or more overlaps (in i32?)
-    todo!()
+    let mut graph = DiGraphMap::new();
+    pairs.iter()
+      .filter_map(|pair| align_pair(&input[pair.a].beacon_relative_locations, &input[pair.b].beacon_relative_locations).map(|iso| ((pair.a, pair.b), iso)))
+      .for_each(|((u,v), iso)| { 
+        graph.add_edge(u,v,iso); 
+        graph.add_edge(v,u,iso.inverse()); 
+        () 
+      });
+    graph
   }
 
   fn scanner_pos(graph: &DiGraphMap<usize, Isometry3f>) -> HashSet<HashedPoint3> {
@@ -189,8 +175,9 @@ mod puzzle {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
           isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
-          let transformed: Point3f = isometry_stack.iter().fold(Point3f::origin(), |p, iso| *iso * p);
-          scanners.insert(HashedPoint3::new(&transformed));
+          let composed: Isometry3f = isometry_stack.iter().cloned().reduce(|a,b| a * b).unwrap();
+          let p = composed * Point3f::origin();
+          scanners.insert(HashedPoint3::new(&p));
         },
         DfsEvent::Finish(_, _) => { isometry_stack.pop(); () },
         _ => (),
@@ -202,17 +189,20 @@ mod puzzle {
 
   fn beacon_pos(graph: &DiGraphMap<usize, Isometry3f>, input: &[ScannerInput]) -> HashSet<HashedPoint3> {
     let mut isometry_stack: Vec<Isometry3f> = Vec::new();
-    let mut beacons: HashSet<HashedPoint3> = HashSet::new();
+    let mut beacons: HashSet<HashedPoint3> = input[0].beacon_relative_locations.iter().map(|p| HashedPoint3::new(p)).collect();
     let _: Control<()> = depth_first_search(&graph, Some(0), |event| {
       match event {
         DfsEvent::TreeEdge(u, v) => { 
           isometry_stack.push(graph.edge_weight(u,v).unwrap().clone());
           for beacon in &input[v].beacon_relative_locations {
-            let transformed: Point3f = isometry_stack.iter().fold(beacon.clone(), |p, iso| *iso * p);
-            beacons.insert(HashedPoint3::new(&transformed));
+            let composed: Isometry3f = isometry_stack.iter().cloned().reduce(|a,b| a * b).unwrap();
+            beacons.insert(HashedPoint3::new(&(composed * beacon)));
           }
         },
-        DfsEvent::Finish(_, _) => { isometry_stack.pop(); () },
+        DfsEvent::Finish(_, _) => { 
+          isometry_stack.pop(); 
+          () 
+        },
         _ => (),
       }
       Control::Continue
@@ -284,13 +274,16 @@ mod puzzle {
        |(x,y,z)| Point3f::new(x as f32, y as f32, z as f32)
       )(input)
     }
+    pub fn beacon_positions(input: &str) -> IResult<&str, Vec<Point3f>> {
+      many1(ws(beacon_position))(input)
+    }
     fn scanner_input(input: &str) -> IResult<&str, ScannerInput> {
       map(
         tuple((
           ws(scanner_line),
           many1(ws(beacon_position))
         )), 
-        |(id, beacons)| ScannerInput {id:id, beacon_relative_locations: beacons}
+        |(_id, beacons)| ScannerInput { beacon_relative_locations: beacons }
       )(input)
     }
     pub fn puzzle_input(input: &str) -> IResult<&str, Vec<ScannerInput>> {
@@ -311,10 +304,67 @@ mod puzzle {
     #[test]
     fn test_align_pair() {
       let input = parse(EXAMPLE).unwrap();
-      let pairs = likely_pairs(&input);
-      let isometry = align_pair(&pairs[0], &input[0].beacon_relative_locations, &input[1].beacon_relative_locations).unwrap();
+      let isometry = align_pair(&input[0].beacon_relative_locations, &input[1].beacon_relative_locations).unwrap();
 
       assert_eq!(HashedPoint3::new(&(isometry * Point3f::origin())), HashedPoint3::new(&Point3f::new(68.0,-1246.0,-43.0)));
+    }
+
+
+    fn assert_point_eq(a: Point3f, b: Point3f) {
+      assert_eq!(HashedPoint3::new(&a), HashedPoint3::new(&b));
+    }
+
+    #[test]
+    fn test_example_scanner_positions_manual_path() {
+      fn test_align(a: usize, b: usize) -> Isometry3f {
+        let input = parse(EXAMPLE).unwrap();
+        align_pair(&input[a].beacon_relative_locations, &input[b].beacon_relative_locations).unwrap()
+      }
+
+      let from_0_to_1 = test_align(0, 1);
+      let from_1_to_3 = test_align(1, 3);
+      let from_1_to_4 = test_align(1, 4);
+      let from_2_to_4 = test_align(2, 4);
+
+      assert_point_eq(from_0_to_1 * Point3f::origin(), Point3f::new(68.0,-1246.0,-43.0));
+      assert_point_eq(from_0_to_1 * from_1_to_4 * Point3f::origin(), Point3f::new(-20.0,-1133.0,1061.0));
+      assert_point_eq(from_0_to_1 * from_1_to_3 * Point3f::origin(), Point3f::new(-92.0,-2380.0,-20.0));
+      assert_point_eq(from_0_to_1 * from_1_to_4 * from_2_to_4.inverse() * Point3f::origin(), Point3f::new(1105.0,-1205.0,1229.0));
+    }
+
+    #[test]
+    fn test_example_scanner_positions_manual_path_from_graph() {
+      let input = parse(EXAMPLE).unwrap();
+
+      let pairs = likely_pairs(&input);
+      let graph = scanner_graph(pairs, &input);
+
+      let from_0_to_1 = graph.edge_weight(0,1).unwrap();
+      let from_1_to_3 = graph.edge_weight(1,3).unwrap();
+      let from_1_to_4 = graph.edge_weight(1,4).unwrap();
+      let from_4_to_2 = graph.edge_weight(4,2).unwrap();
+
+      assert_point_eq(from_0_to_1 * Point3f::origin(), Point3f::new(68.0,-1246.0,-43.0));
+      assert_point_eq(from_0_to_1 * from_1_to_4 * Point3f::origin(), Point3f::new(-20.0,-1133.0,1061.0));
+      assert_point_eq(from_0_to_1 * from_1_to_3 * Point3f::origin(), Point3f::new(-92.0,-2380.0,-20.0));
+      assert_point_eq(from_0_to_1 * from_1_to_4 * from_4_to_2 * Point3f::origin(), Point3f::new(1105.0,-1205.0,1229.0));
+    }
+
+    #[test]
+    fn test_example_map_counts() {
+      let input = parse(EXAMPLE).unwrap();
+      //let _final_positions = parser::beacon_positions(include_str!("examples/day19-example-beacons.txt")).unwrap().1;
+      let map = build_map(&input);
+
+      let scanners = HashedPoint3::set_from_slice(&vec![
+        Point3f::origin(),
+        Point3f::new(68.0,-1246.0,-43.0),
+        Point3f::new(-20.0,-1133.0,1061.0),
+        Point3f::new(-92.0,-2380.0,-20.0),
+        Point3f::new(1105.0,-1205.0,1229.0)
+      ]);
+      assert_eq!(map.scanners, scanners);
+      assert_eq!(map.beacons.len(), 79);
     }
 
     #[test]
@@ -442,8 +492,8 @@ mod puzzle {
       let isometry = align_points(&a, &b);
       assert_eq!(isometry * Point3f::origin(), Point3f::new(5.0, 2.0, 0.0));
 
-      let scanner_0 = ScannerInput { id: 0, beacon_relative_locations: a.clone() };
-      let scanner_1 = ScannerInput { id: 1, beacon_relative_locations: b.clone() };
+      let scanner_0 = ScannerInput { beacon_relative_locations: a.clone() };
+      let scanner_1 = ScannerInput { beacon_relative_locations: b.clone() };
       let input = vec![scanner_0, scanner_1];
 
       let mut graph: DiGraphMap<usize, Isometry3f> = DiGraphMap::new();
@@ -477,6 +527,7 @@ mod tests {
 
   #[test]
   fn test_part_one_example() {
+    //assert_eq!(part_one(include_str!("examples/day19-rotated.txt")), Some(6));
     assert_eq!(part_one(puzzle::EXAMPLE), Some(79));
   }
 }
