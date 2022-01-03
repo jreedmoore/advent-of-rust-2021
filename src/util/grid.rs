@@ -23,7 +23,7 @@ impl<T> Grid<T> {
   }
 
   pub fn in_bounds(&self, row: usize, col: usize) -> bool {
-    row < self.height() || col < self.width()
+    row < self.height() && col < self.width()
   }
 
   fn checked_offset_pos(&self, row: usize, col: usize, row_off: i32, col_off: i32) -> Option<(usize, usize)> {
@@ -40,16 +40,18 @@ impl<T> Grid<T> {
     }
   }
 
+  // all neighbor functions should be top-left to bottom-right
   /// diagonal neighbors, i.e. for a non-edge we should have 8 diagonal neighbors
   pub fn diag_neighbors(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
     vec![
       self.checked_offset_pos(row, col, -1, -1),
-      self.checked_offset_pos(row, col, 0, -1),
-      self.checked_offset_pos(row, col, 1, -1),
       self.checked_offset_pos(row, col, -1, 0),
-      self.checked_offset_pos(row, col, 1, 0),
       self.checked_offset_pos(row, col, -1, 1),
+      self.checked_offset_pos(row, col, 0, -1),
+      // no self
       self.checked_offset_pos(row, col, 0, 1),
+      self.checked_offset_pos(row, col, 1, -1),
+      self.checked_offset_pos(row, col, 1, 0),
       self.checked_offset_pos(row, col, 1, 1),
     ].into_iter().flatten().collect_vec()
   }
@@ -58,13 +60,13 @@ impl<T> Grid<T> {
   pub fn diag_neighbors_self(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
     vec![
       self.checked_offset_pos(row, col, -1, -1),
-      self.checked_offset_pos(row, col, 0, -1),
-      self.checked_offset_pos(row, col, 1, -1),
       self.checked_offset_pos(row, col, -1, 0),
-      Some((row, col)),
-      self.checked_offset_pos(row, col, 1, 0),
       self.checked_offset_pos(row, col, -1, 1),
+      self.checked_offset_pos(row, col, 0, -1),
+      self.checked_offset_pos(row, col, 0, 0), // could be out of bounds!
       self.checked_offset_pos(row, col, 0, 1),
+      self.checked_offset_pos(row, col, 1, -1),
+      self.checked_offset_pos(row, col, 1, 0),
       self.checked_offset_pos(row, col, 1, 1),
     ].into_iter().flatten().collect_vec()
   }
@@ -72,11 +74,25 @@ impl<T> Grid<T> {
   /// orthogonal neighbors, i.e. for a non-edge we should have 4 orthogonal neighbors
   pub fn orthog_neighbors(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
     vec![
-      self.checked_offset_pos(row, col, 0, -1),
       self.checked_offset_pos(row, col, -1, 0),
-      self.checked_offset_pos(row, col, 1, 0),
+      self.checked_offset_pos(row, col, 0, -1),
       self.checked_offset_pos(row, col, 0, 1),
+      self.checked_offset_pos(row, col, 1, 0),
     ].into_iter().flatten().collect_vec()
+  }
+
+  pub fn diag_offsets(&self, row: i32, col: i32) -> Vec<(i32, i32)> {
+    vec![
+      (row-1, col-1),
+      (row-1, col),
+      (row-1, col+1),
+      (row, col-1),
+      (row, col),
+      (row, col+1),
+      (row+1, col-1),
+      (row+1, col),
+      (row+1, col+1),
+    ]
   }
 
   fn index(&self, row: usize, col: usize) -> usize {
@@ -88,6 +104,15 @@ impl<T> Grid<T> {
       Some(&self.storage[self.index(row, col)])
     } else {
       None
+    }
+  }
+
+  /// Get with possibly negative integers
+  pub fn get_int(&self, row: i32, col: i32) -> Option<&T> {
+    if row < 0 || col < 0 {
+      None
+    } else {
+      self.get(row as usize, col as usize)
     }
   }
 }
@@ -191,23 +216,56 @@ mod tests {
     let grid: Grid<bool> = Grid::fill(3, 3, false);
 
     assert_eq!(grid.diag_neighbors_self(1,1), vec![
-      (0,0), (1,0), (2,0),
-      (0,1), (1,1), (2,1),
-      (0,2), (1,2), (2,2),
+      (0,0), (0,1), (0,2),
+      (1,0), (1,1), (1,2),
+      (2,0), (2,1), (2,2),
     ]);
 
     assert_eq!(grid.diag_neighbors(1,1), vec![
-      (0,0), (1,0), (2,0),
-      (0,1),        (2,1),
-      (0,2), (1,2), (2,2),
+      (0,0), (0,1), (0,2),
+      (1,0),        (1,2),
+      (2,0), (2,1), (2,2),
     ]);
 
     assert_eq!(grid.orthog_neighbors(1,1), vec![
-             (1,0),       
-      (0,1),        (2,1),
-             (1,2),       
+             (0,1),       
+      (1,0),        (1,2),
+             (2,1),       
     ]);
 
+    assert_eq!(grid.diag_neighbors(0,0), vec![
+                    (0,1),
+             (1,0), (1,1),
+    ]);
 
+    assert_eq!(grid.diag_neighbors(2,2), vec![
+      (1,1), (1,2),
+      (2,1),       
+    ]);
+
+    assert_eq!(grid.diag_neighbors_self(3, 3), vec![(2,2)]);
+  }
+
+  #[test]
+  fn test_offsets() {
+    let grid: Grid<bool> = Grid::from_data(3, vec![
+      false, true, false,
+      true, false, true,
+      false, true, false
+    ]);
+
+    assert_eq!(grid.diag_offsets(1,1), vec![
+      (0,0), (0,1), (0,2),
+      (1,0), (1,1), (1,2),
+      (2,0), (2,1), (2,2),
+    ]);
+
+    assert_eq!(
+      grid.diag_offsets(0, 0).into_iter().map(|(r,c)| grid.get_int(r,c).map(|rf| rf.clone())).collect_vec(),
+      vec![
+        None, None,        None,
+        None, Some(false), Some(true),
+        None, Some(true),  Some(false)
+      ]);
   }
 }
