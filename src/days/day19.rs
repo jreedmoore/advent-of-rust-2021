@@ -15,9 +15,9 @@ mod puzzle {
 
   #[derive(Debug, Hash, PartialEq, Eq)]
   pub struct HashedPoint3 {
-    x: i32,
-    y: i32,
-    z: i32,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
   }
   impl HashedPoint3 {
     fn new(p: &Point3f) -> HashedPoint3 {
@@ -274,9 +274,6 @@ mod puzzle {
        |(x,y,z)| Point3f::new(x as f32, y as f32, z as f32)
       )(input)
     }
-    pub fn beacon_positions(input: &str) -> IResult<&str, Vec<Point3f>> {
-      many1(ws(beacon_position))(input)
-    }
     fn scanner_input(input: &str) -> IResult<&str, ScannerInput> {
       map(
         tuple((
@@ -353,7 +350,6 @@ mod puzzle {
     #[test]
     fn test_example_map_counts() {
       let input = parse(EXAMPLE).unwrap();
-      //let _final_positions = parser::beacon_positions(include_str!("examples/day19-example-beacons.txt")).unwrap().1;
       let map = build_map(&input);
 
       let scanners = HashedPoint3::set_from_slice(&vec![
@@ -517,8 +513,21 @@ mod puzzle {
   pub const EXAMPLE: &'static str = include_str!("examples/day19-full.txt");
 }
 
+use itertools::Itertools;
+
 pub fn part_one(input: &str) -> Option<u64> {
   puzzle::parse(input).map(|scanner_input| puzzle::build_map(&scanner_input).beacons.len() as u64)
+}
+
+pub fn part_two(input: &str) -> Option<u64> {
+  let scanner_input = puzzle::parse(input)?;
+  let map = puzzle::build_map(&scanner_input);
+
+  map.scanners.iter().tuple_combinations()
+    .map(|(a,b)| {
+      (i32::abs(a.x - b.x) + i32::abs(a.y - b.y) + i32::abs(a.z - b.z)) as u64
+    })
+    .max()
 }
 
 #[cfg(test)]
@@ -527,7 +536,11 @@ mod tests {
 
   #[test]
   fn test_part_one_example() {
-    //assert_eq!(part_one(include_str!("examples/day19-rotated.txt")), Some(6));
     assert_eq!(part_one(puzzle::EXAMPLE), Some(79));
+  }
+
+  #[test]
+  fn test_part_two_example() {
+    assert_eq!(part_two(puzzle::EXAMPLE), Some(3621));
   }
 }
