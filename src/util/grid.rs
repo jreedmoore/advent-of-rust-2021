@@ -2,6 +2,7 @@ use itertools::Itertools;
 use std::ops::{Index,IndexMut};
 
 /// Row-major storage of NxM grid of T
+/// (0,0) is top-left, (n,m) is bottom-right
 #[derive(Debug)]
 pub struct Grid<T> {
   storage: Vec<T>,
@@ -25,14 +26,57 @@ impl<T> Grid<T> {
     row < self.height() || col < self.width()
   }
 
+  fn checked_offset_pos(&self, row: usize, col: usize, row_off: i32, col_off: i32) -> Option<(usize, usize)> {
+    if (row as i32 + row_off < 0) || (col as i32 + col_off < 0) {
+      None
+    } else {
+      let r = ((row as i32) + row_off) as usize;
+      let c = ((col as i32) + col_off) as usize;
+      if self.in_bounds(r, c) {
+        Some((r, c))
+      } else {
+        None
+      }
+    }
+  }
+
   /// diagonal neighbors, i.e. for a non-edge we should have 8 diagonal neighbors
   pub fn diag_neighbors(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
-    todo!()
+    vec![
+      self.checked_offset_pos(row, col, -1, -1),
+      self.checked_offset_pos(row, col, 0, -1),
+      self.checked_offset_pos(row, col, 1, -1),
+      self.checked_offset_pos(row, col, -1, 0),
+      self.checked_offset_pos(row, col, 1, 0),
+      self.checked_offset_pos(row, col, -1, 1),
+      self.checked_offset_pos(row, col, 0, 1),
+      self.checked_offset_pos(row, col, 1, 1),
+    ].into_iter().flatten().collect_vec()
+  }
+
+  /// diagonal neighbors and self, ibid, including (row, col)
+  pub fn diag_neighbors_self(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
+    vec![
+      self.checked_offset_pos(row, col, -1, -1),
+      self.checked_offset_pos(row, col, 0, -1),
+      self.checked_offset_pos(row, col, 1, -1),
+      self.checked_offset_pos(row, col, -1, 0),
+      Some((row, col)),
+      self.checked_offset_pos(row, col, 1, 0),
+      self.checked_offset_pos(row, col, -1, 1),
+      self.checked_offset_pos(row, col, 0, 1),
+      self.checked_offset_pos(row, col, 1, 1),
+    ].into_iter().flatten().collect_vec()
   }
   
   /// orthogonal neighbors, i.e. for a non-edge we should have 4 orthogonal neighbors
   pub fn orthog_neighbors(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
-    todo!()
+    vec![
+      self.checked_offset_pos(row, col, 0, -1),
+      self.checked_offset_pos(row, col, -1, 0),
+      self.checked_offset_pos(row, col, 1, 0),
+      self.checked_offset_pos(row, col, 0, 1),
+    ].into_iter().flatten().collect_vec()
   }
 
   fn index(&self, row: usize, col: usize) -> usize {
@@ -145,6 +189,12 @@ mod tests {
   #[test]
   fn test_neighbors() {
     let grid: Grid<bool> = Grid::fill(3, 3, false);
+
+    assert_eq!(grid.diag_neighbors_self(1,1), vec![
+      (0,0), (1,0), (2,0),
+      (0,1), (1,1), (2,1),
+      (0,2), (1,2), (2,2),
+    ]);
 
     assert_eq!(grid.diag_neighbors(1,1), vec![
       (0,0), (1,0), (2,0),
