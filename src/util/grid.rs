@@ -116,6 +116,10 @@ impl<T> Grid<T> {
       self.get(row as usize, col as usize)
     }
   }
+
+  pub fn iter(&self) -> impl Iterator<Item = &T> {
+    self.storage.iter()
+  }
 }
 impl<T: Clone> Grid<T> {
   pub fn from_rows(rows: Vec<Vec<T>>) -> Grid<T> {
