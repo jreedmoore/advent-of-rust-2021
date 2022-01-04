@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use std::ops::{Index,IndexMut};
+use std::fmt::Display;
 
 /// Row-major storage of NxM grid of T
 /// (0,0) is top-left, (n,m) is bottom-right
@@ -155,6 +156,17 @@ impl<T> IndexMut<(usize,usize)> for Grid<T> {
     } else {
       panic!("(row, col) ({}, {}) out of bounds", r, c);
     }
+  }
+}
+impl<T: Display> Display for Grid<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> { 
+    for col in 0..self.height() {
+      for row in 0..self.width() {
+        write!(f, "{}", self[(row,col)])?;
+      }
+      write!(f, "\n")?;
+    }
+    Ok(())
   }
 }
 
