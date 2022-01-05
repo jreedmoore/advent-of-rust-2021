@@ -35,6 +35,7 @@ fn main() {
     ,   Program{name: "day19-1", input: "day19.txt", entry: day19::part_one}
     ,   Program{name: "day19-2", input: "day19.txt", entry: day19::part_two}
     ,   Program{name: "day20-1", input: "day20.txt", entry: day20::part_one}
+    ,   Program{name: "day20-2", input: "day20.txt", entry: day20::part_two}
     ];
 
     let program = programs.iter().find(|prog| prog.name == args[1]).unwrap();

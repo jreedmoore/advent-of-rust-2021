@@ -11,6 +11,7 @@ pub struct Grid<T> {
 }
 impl<T> Grid<T> {
   // constructors
+  #[allow(dead_code)]
   pub fn from_data(ncols: usize, data: Vec<T>) -> Grid<T> {
     Grid { storage: data, ncols: ncols }
   }
@@ -43,6 +44,7 @@ impl<T> Grid<T> {
 
   // all neighbor functions should be top-left to bottom-right
   /// diagonal neighbors, i.e. for a non-edge we should have 8 diagonal neighbors
+  #[allow(dead_code)]
   pub fn diag_neighbors(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
     vec![
       self.checked_offset_pos(row, col, -1, -1),
@@ -58,6 +60,7 @@ impl<T> Grid<T> {
   }
 
   /// diagonal neighbors and self, ibid, including (row, col)
+  #[allow(dead_code)]
   pub fn diag_neighbors_self(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
     vec![
       self.checked_offset_pos(row, col, -1, -1),
@@ -73,6 +76,7 @@ impl<T> Grid<T> {
   }
   
   /// orthogonal neighbors, i.e. for a non-edge we should have 4 orthogonal neighbors
+  #[allow(dead_code)]
   pub fn orthog_neighbors(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
     vec![
       self.checked_offset_pos(row, col, -1, 0),

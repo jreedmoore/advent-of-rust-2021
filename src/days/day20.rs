@@ -55,25 +55,26 @@ mod puzzle {
   pub fn pixel_pattern_to_index(pattern: &[PixelValue]) -> usize {
     let mut index = 0;
     for i in 0..pattern.len() {
+      index = index << 1;
       if pattern[i] == PixelValue::Light {
-        index = index | (1 << (pattern.len() - i - 1));
+        index = index | 1;
       }
     }
     index
   }
 
-  pub fn pixel_pattern_at(image: &Grid<PixelValue>, row: i32, col: i32) -> Vec<PixelValue> {
+  pub fn pixel_pattern_at(image: &Grid<PixelValue>, default: &PixelValue, row: i32, col: i32) -> Vec<PixelValue> {
     let offsets = image.diag_offsets(row, col);
-    offsets.iter().map(|(r,c)| image.get_int(*r,*c).unwrap_or(&PixelValue::Dark).clone()).collect_vec()
+    offsets.iter().map(|(r,c)| image.get_int(*r,*c).unwrap_or(default).clone()).collect_vec()
   }
 
-  const DIM_INCREASE: usize = 6;
+  const DIM_INCREASE: usize = 2;
   const DIM_OFFSET: i32 = (DIM_INCREASE / 2) as i32;
-  pub fn apply_enhancement(enhancement: &[PixelValue], image: Grid<PixelValue>) -> Grid<PixelValue> {
+  pub fn apply_enhancement(enhancement: &[PixelValue], image: Grid<PixelValue>, oob_value: &PixelValue) -> Grid<PixelValue> {
     let mut new_image = Grid::fill(image.height()+DIM_INCREASE, image.width()+DIM_INCREASE, PixelValue::Dark);
     for col in -DIM_OFFSET..image.width() as i32 +DIM_OFFSET {
       for row in -DIM_OFFSET..image.width() as i32 + DIM_OFFSET {
-        let pattern = pixel_pattern_at(&image, row, col);
+        let pattern = pixel_pattern_at(&image, oob_value, row, col);
         let idx = pixel_pattern_to_index(&pattern);
         let r = (row + DIM_OFFSET) as usize;
         let c = (col + DIM_OFFSET) as usize;
@@ -81,6 +82,20 @@ mod puzzle {
       }
     }
     new_image
+  }
+
+  pub fn repeatedly_enhance(enhancement: &[PixelValue], image: Grid<PixelValue>, steps: usize) -> Grid<PixelValue> {
+    let mut acc = apply_enhancement(enhancement, image, &PixelValue::Dark);
+    for _i in 1..steps {
+      let oob_value = 
+        if _i & 1 != 0 { 
+          &enhancement[0]
+        } else {
+          &PixelValue::Dark
+        };
+      acc = apply_enhancement(enhancement, acc, oob_value);
+    }
+    acc
   }
 
   #[cfg(test)]
@@ -97,9 +112,18 @@ mod puzzle {
 }
 pub fn part_one(input: &str) -> Option<u64> {
   let (enhancement, image) = puzzle::parse_input(input)?;
-  let step_1 = puzzle::apply_enhancement(&enhancement, image);
-  let step_2 = puzzle::apply_enhancement(&enhancement, step_1);
-  Some(step_2.iter().filter(|p| p.is_lit()).count() as u64)
+  let output = puzzle::repeatedly_enhance(&enhancement, image, 2);
+  Some(output.iter().filter(|p| p.is_lit()).count() as u64)
+}
+
+pub fn part_two(input: &str) -> Option<u64> {
+  let (enhancement, image) = puzzle::parse_input(input)?;
+
+  let output = puzzle::repeatedly_enhance(&enhancement, image, 50);
+
+  //println!("in:\n{}", image);
+  println!("out:\n{}", output);
+  Some(output.iter().filter(|p| p.is_lit()).count() as u64)
 }
 
 #[cfg(test)]
@@ -110,5 +134,10 @@ mod tests {
   #[test]
   fn test_part_one_example() {
     assert_eq!(part_one(EXAMPLE), Some(35));
+  }
+
+  #[test]
+  fn test_part_two_example() {
+    assert_eq!(part_two(EXAMPLE), Some(3351));
   }
 }
