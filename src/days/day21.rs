@@ -279,7 +279,10 @@ mod part_two {
 pub fn part_two(input: &str) -> Option<u64> {
     let (_, (one, two)) = puzzle::parser::player_positions(input).ok()?;
     let game_state = part_two::GameState::new(one, two);
-    let output = part_two::part_two_puzzle(&game_state, &mut HashMap::new());
+    let mut memo = HashMap::new();
+    let output = part_two::part_two_puzzle(&game_state, &mut memo);
+
+    println!("Found solution, with {} unique states explored", memo.len());
 
     Some(std::cmp::max(
         output.player_one_wins,
