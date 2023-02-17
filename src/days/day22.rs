@@ -9,13 +9,113 @@
 // efficiently query it.
 
 pub mod puzzle {
-    mod parser {
+    struct CoordRange {
+        low: i64,
+        high: i64,
+    }
+    impl CoordRange {
+        fn new(low: i64, high: i64) -> CoordRange {
+            if low > high {
+                panic!("Invalid CoordRange, low > high; {} > {}", low, high)
+            }
+            CoordRange {
+                low: low,
+                high: high,
+            }
+        }
+    }
+    struct BoundingBox {
+        x: CoordRange,
+        y: CoordRange,
+        z: CoordRange,
+    }
+    impl BoundingBox {
+        fn new(
+            x_low: i64,
+            x_high: i64,
+            y_low: i64,
+            y_high: i64,
+            z_low: i64,
+            z_high: i64,
+        ) -> BoundingBox {
+            BoundingBox {
+                x: CoordRange::new(x_low, x_high),
+                y: CoordRange::new(y_low, y_high),
+                z: CoordRange::new(z_low, z_high),
+            }
+        }
+    }
 
+    #[derive(Clone)]
+    enum CommandState {
+        ON,
+        OFF,
+    }
+    struct Command {
+        state: CommandState,
+        bbox: BoundingBox,
+    }
+    mod parser {
+        use super::*;
+
+        use crate::util::nom_helpers::ws;
+        use nom::{
+            branch::alt,
+            bytes::complete::tag,
+            character::complete::alpha1,
+            combinator::{map, value},
+            multi::{many1, separated_list1},
+            sequence::{preceded, separated_pair, tuple},
+            IResult,
+        };
+
+        fn state(input: &str) -> IResult<&str, CommandState> {
+            ws(alt((
+                value(CommandState::ON, tag("on")),
+                value(CommandState::OFF, tag("off")),
+            )))(input)
+        }
+
+        fn range(input: &str) -> IResult<&str, CoordRange> {
+            map(
+                preceded(
+                    preceded(alpha1, tag("=")),
+                    separated_pair(
+                        nom::character::complete::i64,
+                        tag(".."),
+                        nom::character::complete::i64,
+                    ),
+                ),
+                |(low, high)| CoordRange::new(low, high),
+            )(input)
+        }
+
+        fn command(input: &str) -> IResult<&str, Command> {
+            map(
+                tuple((state, separated_list1(tag(","), range))),
+                |(state, mut ranges)| {
+                    let z = ranges.remove(2);
+                    let y = ranges.remove(1);
+                    let x = ranges.remove(0);
+                    Command {
+                        state: state,
+                        bbox: BoundingBox { x: x, y: y, z: z },
+                    }
+                },
+            )(input)
+        }
+
+        pub(super) fn parse_input(input: &str) -> Option<Vec<Command>> {
+            Some(many1(command)(input).ok()?.1)
+        }
     }
 
     pub mod part_one {
+        use super::*;
         pub fn run(input: &str) -> Option<u64> {
-            todo!()
+            let commands = parser::parse_input(input)?;
+
+            Some(0)
         }
     }
 

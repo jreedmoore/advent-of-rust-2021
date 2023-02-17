@@ -134,7 +134,7 @@ fn main() {
         Program {
             name: "day22-2",
             input: "day22.txt",
-            entry: day21::puzzle::part_two::run,
+            entry: day22::puzzle::part_two::run,
         },
     ];
 

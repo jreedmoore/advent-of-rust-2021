@@ -81,24 +81,13 @@ mod puzzle {
 
     pub mod parser {
         use super::*;
+        use crate::util::nom_helpers::ws;
         use nom::{
             bytes::complete::{tag, take_until},
-            character::complete::multispace0,
             combinator::map,
-            error::ParseError,
-            sequence::{delimited, preceded, tuple},
+            sequence::{preceded, tuple},
             IResult,
         };
-        /// A combinator that takes a parser `inner` and produces a parser that also consumes both leading and
-        /// trailing whitespace, returning the output of `inner`.
-        fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(
-            inner: F,
-        ) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
-        where
-            F: Fn(&'a str) -> IResult<&'a str, O, E>,
-        {
-            delimited(multispace0, inner, multispace0)
-        }
 
         fn starting_position(input: &str) -> IResult<&str, u32> {
             preceded(
