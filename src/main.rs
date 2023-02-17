@@ -126,6 +126,16 @@ fn main() {
             input: "day21.txt",
             entry: day21::part_two,
         },
+        Program {
+            name: "day22-1",
+            input: "day22.txt",
+            entry: day22::puzzle::part_one::run,
+        },
+        Program {
+            name: "day22-2",
+            input: "day22.txt",
+            entry: day21::puzzle::part_two::run,
+        },
     ];
 
     let program = programs.iter().find(|prog| prog.name == args[1]).unwrap();
