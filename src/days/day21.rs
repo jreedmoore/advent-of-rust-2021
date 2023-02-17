@@ -40,7 +40,6 @@ mod puzzle {
             let r1 = self.roll_die();
             let r2 = self.roll_die();
             let r3 = self.roll_die();
-            println!("rolls: {} {} {}", r1, r2, r3);
 
             print!(
                 "{}",
@@ -74,7 +73,7 @@ mod puzzle {
             self.score += next_position + 1;
         }
     }
-    #[derive(PartialEq, Eq, Hash, Clone)]
+    #[derive(PartialEq, Eq, Hash, Clone, Debug)]
     pub enum PlayerId {
         PlayerOne,
         PlayerTwo,
@@ -156,7 +155,7 @@ mod part_two {
 
     use super::puzzle::{GamePlayer, PlayerId};
 
-    #[derive(PartialEq, Eq, Hash, Clone)]
+    #[derive(PartialEq, Eq, Hash, Clone, Debug)]
     pub struct GameState {
         pub player_one: GamePlayer,
         pub player_two: GamePlayer,
@@ -166,11 +165,11 @@ mod part_two {
         pub fn new(player_one_pos: u32, player_two_pos: u32) -> GameState {
             GameState {
                 player_one: GamePlayer {
-                    position: player_one_pos,
+                    position: player_one_pos - 1, // remember, positions are 0 indexed!
                     score: 0,
                 },
                 player_two: GamePlayer {
-                    position: player_two_pos,
+                    position: player_two_pos - 1,
                     score: 0,
                 },
                 next_player: PlayerId::PlayerOne,
@@ -215,23 +214,23 @@ mod part_two {
             },
             DieRoll {
                 value: 4,
-                occurences: 2,
+                occurences: 3,
             },
             DieRoll {
                 value: 5,
-                occurences: 4,
+                occurences: 6,
             },
             DieRoll {
                 value: 6,
-                occurences: 4,
+                occurences: 7,
             },
             DieRoll {
                 value: 7,
-                occurences: 4,
+                occurences: 6,
             },
             DieRoll {
                 value: 8,
-                occurences: 2,
+                occurences: 3,
             },
             DieRoll {
                 value: 9,
