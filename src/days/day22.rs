@@ -11,6 +11,7 @@
 pub mod puzzle {
     use std::ops::Bound;
 
+    #[derive(Debug)]
     struct CoordRange {
         low: i64,
         high: i64,
@@ -25,14 +26,22 @@ pub mod puzzle {
                 high: high,
             }
         }
+
+        fn is_overlapping(&self, other: &CoordRange) -> bool {
+            (self.low < other.low && self.high > other.low) ||
+            (self.low < other.high && self.high > other.high) ||
+            (other.low < self.low && other.high > self.low) ||
+            (other.low < self.high && other.high > self.high)
+        }
     }
-    struct BoundingBox {
+    #[derive(Debug)]
+    pub(super) struct BoundingBox {
         x: CoordRange,
         y: CoordRange,
         z: CoordRange,
     }
     impl BoundingBox {
-        fn new(
+        pub fn new(
             x_low: i64,
             x_high: i64,
             y_low: i64,
@@ -48,20 +57,27 @@ pub mod puzzle {
         }
 
         // project the problem into 2D for test cases
-        fn on_z(x_low: i64, x_high: i64, y_low: i64, y_high: i64) -> BoundingBox {
+        pub fn on_z(x_low: i64, x_high: i64, y_low: i64, y_high: i64) -> BoundingBox {
             BoundingBox {
                 x: CoordRange::new(x_low, x_high),
                 y: CoordRange::new(y_low, y_high),
                 z: CoordRange::new(0, 1)
             }
         }
+
+        pub fn is_overlapping(&self, other: &BoundingBox) -> bool {
+            self.x.is_overlapping(&other.x) &&
+            self.y.is_overlapping(&other.y) &&
+            self.z.is_overlapping(&other.z) 
+        }
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     enum CommandState {
         ON,
         OFF,
     }
+    #[derive(Debug)]
     struct Command {
         state: CommandState,
         bbox: BoundingBox,
@@ -122,11 +138,64 @@ pub mod puzzle {
     }
 
     pub mod part_one {
+        use itertools::Itertools;
+
         use super::*;
+
+        #[derive(Clone, Copy, PartialEq)]
+        enum CubeState {
+            ON, OFF
+        }
+        struct DenseCubes {
+            cubes: [CubeState; 1000000]
+        }
+        impl DenseCubes {
+            fn in_bounds(v: i64) -> bool {
+                v <= 50 && v >= -50
+            }
+            fn index(x: i64, y: i64, z: i64) -> Option<usize> {
+                if Self::in_bounds(x) && Self::in_bounds(y) && Self::in_bounds(z) {
+                    let xx = (x + 50) as usize;
+                    let yy = (y + 50) as usize;
+                    let zz = (z + 50) as usize;
+                    Some(xx + yy*100 + zz*100*100)
+                } else {
+                    None
+                }
+            }
+            fn set(&mut self, x: i64, y: i64, z: i64, v: CubeState) -> bool {
+                Self::index(x,y,z).map(|idx| self.cubes[idx] = v).is_some()
+            }
+            fn new() -> DenseCubes {
+               DenseCubes { cubes: [CubeState::OFF; 1000000] } 
+            }
+        }
         pub fn run(input: &str) -> Option<u64> {
             let commands = parser::parse_input(input)?;
+            let reactor_bbox = BoundingBox::new(-50, 50, -50, 50, -50, 50);
+            let mut reactor = DenseCubes::new();
 
-            Some(0)
+            println!("Command in {:?}", commands[0]);
+            //let filtered_commands = commands.into_iter().filter(|cmd| cmd.bbox.is_overlapping(&reactor_bbox)).collect_vec();
+
+            for command in commands {
+                if command.bbox.is_overlapping(&reactor_bbox) {
+                    for x in command.bbox.x.low..=command.bbox.x.high {
+                        for y in command.bbox.y.low..=command.bbox.y.high {
+                            for z in command.bbox.z.low..=command.bbox.z.high {
+                                println!("Setting ({},{},{}) to {:?}", x, y, z, command.state);
+                                let cube_state = match command.state {
+                                    CommandState::ON => CubeState::ON,
+                                    CommandState::OFF => CubeState::OFF
+                                };
+                                reactor.set(x,y,z,cube_state);
+                            }
+                        }
+                    }
+                }
+            };
+
+            Some(reactor.cubes.iter().filter(|s| **s == CubeState::ON).count() as u64)
         }
     }
 
@@ -150,7 +219,7 @@ off x=9..11,y=9..11,z=9..11
 on x=10..10,y=10..10,z=10..10
         "#;
 
-        assert_eq!(puzzle::part_one::run(example), Some(590784))
+        assert_eq!(puzzle::part_one::run(example), Some(39))
     }
     #[test]
     fn test_part_one_example() {
@@ -180,5 +249,15 @@ on x=967..23432,y=45373..81175,z=27513..53682
         "#;
 
         assert_eq!(puzzle::part_one::run(example), Some(590784))
+    }
+
+    #[test]
+    fn test_bounding_box_overlap() {
+        use super::puzzle::BoundingBox;
+        let containing = BoundingBox::new(-50, 50, -50, 50, -50, 50);
+        let smaller = BoundingBox::new(10,12,10,12,10,12);
+
+        assert!(containing.is_overlapping(&smaller));
+        assert!(smaller.is_overlapping(&containing));
     }
 }
