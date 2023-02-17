@@ -9,6 +9,8 @@
 // efficiently query it.
 
 pub mod puzzle {
+    use std::ops::Bound;
+
     struct CoordRange {
         low: i64,
         high: i64,
@@ -42,6 +44,15 @@ pub mod puzzle {
                 x: CoordRange::new(x_low, x_high),
                 y: CoordRange::new(y_low, y_high),
                 z: CoordRange::new(z_low, z_high),
+            }
+        }
+
+        // project the problem into 2D for test cases
+        fn on_z(x_low: i64, x_high: i64, y_low: i64, y_high: i64) -> BoundingBox {
+            BoundingBox {
+                x: CoordRange::new(x_low, x_high),
+                y: CoordRange::new(y_low, y_high),
+                z: CoordRange::new(0, 1)
             }
         }
     }
@@ -130,6 +141,17 @@ pub mod puzzle {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_part_one_small_example() {
+        let example = r#"
+on x=10..12,y=10..12,z=10..12
+on x=11..13,y=11..13,z=11..13
+off x=9..11,y=9..11,z=9..11
+on x=10..10,y=10..10,z=10..10
+        "#;
+
+        assert_eq!(puzzle::part_one::run(example), Some(590784))
+    }
     #[test]
     fn test_part_one_example() {
         let example = r#"
