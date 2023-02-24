@@ -32,8 +32,12 @@ pub mod puzzle {
                 || (other.low < self.high && other.high > self.high)
         }
 
+        fn contains(&self, other: &CoordRange) -> bool {
+            self.low <= other.low && self.high >= other.high
+        }
+
         fn size(&self) -> u64 {
-            (self.high - self.low) as u64
+            (self.high - self.low) as u64 + 1
         }
     }
     #[derive(Hash, Eq, PartialEq, Debug, Clone)]
@@ -63,7 +67,7 @@ pub mod puzzle {
             BoundingBox {
                 x: CoordRange::new(x_low, x_high),
                 y: CoordRange::new(y_low, y_high),
-                z: CoordRange::new(0, 1),
+                z: CoordRange::new(1, 1),
             }
         }
 
@@ -79,7 +83,12 @@ pub mod puzzle {
 
         // Produce vec of bounding boxes which do NOT contain other.
         fn subdivide_on(&self, other: &BoundingBox) -> Vec<BoundingBox> {
-            todo!()
+            let mut acc = vec![];
+
+            if self.x.contains(&other.x) {
+                acc.push(BoundingBox { x: CoordRange::new(other.x.high + 1, self.x.high), y: self.y.clone(), z: self.z.clone() });
+            }
+            acc
         }
     }
     #[cfg(test)]
@@ -88,6 +97,13 @@ pub mod puzzle {
 
         fn subdivided_size(target: &BoundingBox, other: &BoundingBox) -> u64 {
             target.subdivide_on(other).iter().map(|bb|bb.size()).sum()
+        }
+
+        #[test]
+        fn test_size() {
+            assert_eq!(BoundingBox::on_z(1,3,1,3).size(), 9);
+            assert_eq!(BoundingBox::on_z(2,3,1,3).size(), 6);
+            assert_eq!(BoundingBox::on_z(1,1,1,1).size(), 1);
         }
 
         #[test]
