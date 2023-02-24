@@ -32,14 +32,11 @@ pub mod puzzle {
                 || (other.low < self.high && other.high > self.high)
         }
 
-        fn contains(&self, other: &CoordRange) -> bool {
-            self.low <= other.low && self.high >= other.high
-        }
-
         fn size(&self) -> u64 {
             (self.high - self.low) as u64 + 1
         }
     }
+
     #[derive(Hash, Eq, PartialEq, Debug, Clone)]
     pub(super) struct BoundingBox {
         x: CoordRange,
@@ -80,68 +77,16 @@ pub mod puzzle {
         pub fn size(&self) -> u64 {
             self.x.size() * self.y.size() * self.z.size()
         }
-
-        // Produce vec of bounding boxes which do NOT contain other.
-        fn subdivide_on(&self, other: &BoundingBox) -> Vec<BoundingBox> {
-            let mut acc = vec![];
-
-            if self.x.contains(&other.x) {
-                acc.push(BoundingBox { x: CoordRange::new(other.x.high + 1, self.x.high), y: self.y.clone(), z: self.z.clone() });
-            }
-            acc
-        }
     }
     #[cfg(test)]
     mod tests {
-        use super::BoundingBox;
-
-        fn subdivided_size(target: &BoundingBox, other: &BoundingBox) -> u64 {
-            target.subdivide_on(other).iter().map(|bb|bb.size()).sum()
-        }
+        use super::*;
 
         #[test]
         fn test_size() {
             assert_eq!(BoundingBox::on_z(1,3,1,3).size(), 9);
             assert_eq!(BoundingBox::on_z(2,3,1,3).size(), 6);
             assert_eq!(BoundingBox::on_z(1,1,1,1).size(), 1);
-        }
-
-        #[test]
-        fn test_subivide_on() {
-            let three_by_three = BoundingBox::on_z(1,3,1,3);
-            let left = BoundingBox::on_z(1,1,1,3);
-            let right = BoundingBox::on_z(3,3,1,3);
-            let top = BoundingBox::on_z(1,3,3,3);
-            let bottom = BoundingBox::on_z(1,3,1,1);
-
-            let center = BoundingBox::on_z(2,2,2,2);
-
-            let top_left = BoundingBox::on_z(1,1,3,3);
-            let top_right = BoundingBox::on_z(3,3,3,3);
-            let bottom_left = BoundingBox::on_z(1,1,1,1);
-            let bottom_right = BoundingBox::on_z(3,3,1,1);
-
-            let left_center = BoundingBox::on_z(1,1,2,2);
-            let right_center = BoundingBox::on_z(3,3,2,2);
-            let bottom_center = BoundingBox::on_z(2,2,1,1);
-            let top_center = BoundingBox::on_z(2,2,3,3);
-
-            assert_eq!(subdivided_size(&three_by_three, &left), 6);
-            assert_eq!(subdivided_size(&three_by_three, &right), 6);
-            assert_eq!(subdivided_size(&three_by_three, &top), 6);
-            assert_eq!(subdivided_size(&three_by_three, &bottom), 6);
-
-            assert_eq!(subdivided_size(&three_by_three, &center), 8);
-
-            assert_eq!(subdivided_size(&three_by_three, &top_left), 8);
-            assert_eq!(subdivided_size(&three_by_three, &top_right), 8);
-            assert_eq!(subdivided_size(&three_by_three, &bottom_left), 8);
-            assert_eq!(subdivided_size(&three_by_three, &bottom_right), 8);
-            
-            assert_eq!(subdivided_size(&three_by_three, &left_center), 8);
-            assert_eq!(subdivided_size(&three_by_three, &right_center), 8);
-            assert_eq!(subdivided_size(&three_by_three, &bottom_center), 8);
-            assert_eq!(subdivided_size(&three_by_three, &top_center), 8);
         }
     }
 
@@ -212,8 +157,6 @@ pub mod puzzle {
 
     // operate over a restricted set region, so we take a naive approach and represent the reactor as a dense matrix, and directly apply the commands on to that region
     pub mod part_one {
-        use itertools::Itertools;
-
         use super::*;
 
         #[derive(Clone, Copy, PartialEq)]
