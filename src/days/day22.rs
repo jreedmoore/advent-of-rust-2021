@@ -288,6 +288,13 @@ pub mod puzzle {
             for (i, command) in commands.iter().enumerate() {
                 let command_bbox = command.bbox.clone();
 
+                // Remove existing regions which are completely contained by the command bounding box.
+                regions = regions.into_iter().filter(|region| {
+                    let overlapping = region.bbox.overlapping_box(&command_bbox);
+                    // If the overlapping bbox is exactly the region's bbox then it is completely contained.
+                    overlapping.map_or(true, |bbox| bbox != region.bbox)
+                }).collect();
+
                 let intersecting: Vec<Region> = regions.iter().map(|existing| {
                     existing.bbox.overlapping_box(&command_bbox).map(|overlapping| {
                         Region { sign: -existing.sign, bbox: overlapping }
@@ -317,6 +324,7 @@ mod tests {
     #[test]
     fn test_part_one_small_example() {
         let example = r#"
+on x=10..10,y=10..10,z=10..10
 on x=10..12,y=10..12,z=10..12
 on x=11..13,y=11..13,z=11..13
 off x=9..11,y=9..11,z=9..11
