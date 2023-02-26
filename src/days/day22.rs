@@ -80,7 +80,11 @@ pub mod puzzle {
         pub fn is_overlapping(&self, other: &BoundingBox) -> bool {
             self.min.x < other.max.x && other.max.x > self.min.x &&
             self.min.y < other.max.y && other.max.y > self.min.y &&
-            self.min.z < other.max.z && other.max.z > self.min.z
+            self.min.z < other.max.z && other.max.z > self.min.z &&
+
+            other.min.x < self.max.x && self.max.x > other.min.x &&
+            other.min.y < self.max.y && self.max.y > other.min.y &&
+            other.min.z < self.max.z && self.max.z > other.min.z
         }
 
         pub fn size(&self) -> u64 {
@@ -102,6 +106,7 @@ pub mod puzzle {
             assert_eq!(BoundingBox::on_z(1,1,3,3).size(), 9);
             assert_eq!(BoundingBox::on_z(2,1,3,3).size(), 6);
             assert_eq!(BoundingBox::on_z(1,1,1,1).size(), 1);
+            assert_eq!(BoundingBox::from_bounds(Vec3i::new(10,10,10), Vec3i::new(10,10,10)).unwrap().size(), 1);
         }
 
         #[test]
@@ -116,10 +121,13 @@ pub mod puzzle {
         fn test_is_overlapping() {
             let containing = BoundingBox::new(-50, 50, -50, 50, -50, 50);
             let smaller = BoundingBox::new(10, 12, 10, 12, 10, 12);
+            let out_of_range = BoundingBox::from_bounds(Vec3i::new(-83807, -20052, -8512), Vec3i::new(-77448, 2919, 1270)).unwrap();
 
             assert!(containing.is_overlapping(&smaller));
             assert!(smaller.is_overlapping(&containing));
             assert!(smaller.is_overlapping(&smaller));
+            assert!(!containing.is_overlapping(&out_of_range));
+            assert!(!out_of_range.is_overlapping(&containing));
         }
     }
 
@@ -230,10 +238,10 @@ pub mod puzzle {
             let reactor_bbox = BoundingBox::new(-50, 50, -50, 50, -50, 50);
             let mut reactor = DenseCubes::new();
 
-            println!("Command in {:?}", commands[0]);
             //let filtered_commands = commands.into_iter().filter(|cmd| cmd.bbox.is_overlapping(&reactor_bbox)).collect_vec();
 
             for command in commands {
+                println!("Command in {:?}", command);
                 if command.bbox.is_overlapping(&reactor_bbox) {
                     for x in command.bbox.min.x..=command.bbox.max.x {
                         for y in command.bbox.min.y..=command.bbox.max.y {
@@ -262,13 +270,10 @@ pub mod puzzle {
     // Part Two allows a much larger range for the reactor region, which isn't feasible to naively store in memory, and further the runtime of naively executing operations is way too large
     // instead we'll directly represent the on regions of the instructions as bounding boxes in 3D space and then subdivide those regions if subsequent on or off instructions overlap them.
     pub mod part_two {
-        use std::collections::HashSet;
-
         use super::*;
         #[derive(Debug, PartialEq, Eq, Hash, Clone)]
         struct Region {
             sign: i64,
-            on: bool,
             bbox: BoundingBox,
         }
         impl Region {
@@ -279,31 +284,27 @@ pub mod puzzle {
         pub fn run(input: &str) -> Option<u64> {
             let commands = parser::parse_input(input)?;
             
-            let mut regions: HashSet<Region> = HashSet::new();
-            for command in commands {
+            let mut regions : Vec<Region> = vec![];
+            for (i, command) in commands.iter().enumerate() {
                 let command_bbox = command.bbox.clone();
 
                 let intersecting: Vec<Region> = regions.iter().map(|existing| {
                     existing.bbox.overlapping_box(&command_bbox).map(|overlapping| {
-                        Region { sign: -existing.sign, on: true, bbox: overlapping }
+                        Region { sign: -existing.sign, bbox: overlapping }
                     })
                 }).flatten().collect();
 
                 for new_region in intersecting.clone() {
-                    regions.insert(new_region);
+                    regions.push(new_region);
                 }
-                println!("Command: {:?} Intersection Regions {:?}", command, intersecting);
 
                 if command.state == CommandState::ON {
-                    regions.insert(Region { sign: 1, on: true, bbox: command_bbox });
-                } else {
-                    regions.insert(Region { sign: -1, on: false, bbox: command_bbox });
-                }
-                let volume: i64 = regions.iter().filter(|r| r.on).map(|region| region.volume()).sum();
-                println!("Command: {:?} Regions After: {:?} Volume {}", command, regions.len(), volume);
+                    regions.push(Region { sign: 1, bbox: command_bbox });
+                } 
+                println!("Finished command {}, region count {}", i, regions.len());
             }
 
-            let volume: i64 = regions.iter().filter(|r| r.on).map(|region| region.volume()).sum();
+            let volume: i64 = regions.iter().map(|region| region.volume()).sum();
             Some(volume as u64)
         }
     }
