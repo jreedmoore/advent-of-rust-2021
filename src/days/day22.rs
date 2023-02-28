@@ -44,7 +44,7 @@ pub mod puzzle {
     #[derive(Hash, Eq, PartialEq, Debug, Clone)]
     pub(super) struct BoundingBox {
         min: Vec3i, // bottom-left
-        max: Vec3i  // top-right
+        max: Vec3i, // top-right
     }
     impl BoundingBox {
         pub fn new(
@@ -60,7 +60,7 @@ pub mod puzzle {
             assert!(z_low <= z_high);
             BoundingBox {
                 min: Vec3i::new(x_low, y_low, z_low),
-                max: Vec3i::new(x_high, y_high, z_high)
+                max: Vec3i::new(x_high, y_high, z_high),
             }
         }
 
@@ -78,19 +78,26 @@ pub mod puzzle {
         }
 
         pub fn is_overlapping(&self, other: &BoundingBox) -> bool {
-            self.min.x < other.max.x && other.max.x > self.min.x &&
-            self.min.y < other.max.y && other.max.y > self.min.y &&
-            self.min.z < other.max.z && other.max.z > self.min.z &&
-
-            other.min.x < self.max.x && self.max.x > other.min.x &&
-            other.min.y < self.max.y && self.max.y > other.min.y &&
-            other.min.z < self.max.z && self.max.z > other.min.z
+            self.min.x < other.max.x
+                && other.max.x > self.min.x
+                && self.min.y < other.max.y
+                && other.max.y > self.min.y
+                && self.min.z < other.max.z
+                && other.max.z > self.min.z
+                && other.min.x < self.max.x
+                && self.max.x > other.min.x
+                && other.min.y < self.max.y
+                && self.max.y > other.min.y
+                && other.min.z < self.max.z
+                && self.max.z > other.min.z
         }
 
         pub fn size(&self) -> u64 {
-            ((self.max.x - self.min.x + 1) *
-            (self.max.y - self.min.y + 1) *
-            (self.max.z - self.min.z + 1)).try_into().unwrap()
+            ((self.max.x - self.min.x + 1)
+                * (self.max.y - self.min.y + 1)
+                * (self.max.z - self.min.z + 1))
+                .try_into()
+                .unwrap()
         }
 
         pub fn overlapping_box(&self, other: &BoundingBox) -> Option<BoundingBox> {
@@ -103,25 +110,34 @@ pub mod puzzle {
 
         #[test]
         fn test_size() {
-            assert_eq!(BoundingBox::on_z(1,1,3,3).size(), 9);
-            assert_eq!(BoundingBox::on_z(2,1,3,3).size(), 6);
-            assert_eq!(BoundingBox::on_z(1,1,1,1).size(), 1);
-            assert_eq!(BoundingBox::from_bounds(Vec3i::new(10,10,10), Vec3i::new(10,10,10)).unwrap().size(), 1);
+            assert_eq!(BoundingBox::on_z(1, 1, 3, 3).size(), 9);
+            assert_eq!(BoundingBox::on_z(2, 1, 3, 3).size(), 6);
+            assert_eq!(BoundingBox::on_z(1, 1, 1, 1).size(), 1);
+            assert_eq!(
+                BoundingBox::from_bounds(Vec3i::new(10, 10, 10), Vec3i::new(10, 10, 10))
+                    .unwrap()
+                    .size(),
+                1
+            );
         }
 
         #[test]
         fn test_overlapping_box() {
-            let a = BoundingBox::on_z(0,0,3,3);
-            let b = BoundingBox::on_z(1,2,1,4);
+            let a = BoundingBox::on_z(0, 0, 3, 3);
+            let b = BoundingBox::on_z(1, 2, 1, 4);
 
-            assert_eq!(a.overlapping_box(&b), Some(BoundingBox::on_z(1,2,1,3)));
+            assert_eq!(a.overlapping_box(&b), Some(BoundingBox::on_z(1, 2, 1, 3)));
         }
 
         #[test]
         fn test_is_overlapping() {
             let containing = BoundingBox::new(-50, 50, -50, 50, -50, 50);
             let smaller = BoundingBox::new(10, 12, 10, 12, 10, 12);
-            let out_of_range = BoundingBox::from_bounds(Vec3i::new(-83807, -20052, -8512), Vec3i::new(-77448, 2919, 1270)).unwrap();
+            let out_of_range = BoundingBox::from_bounds(
+                Vec3i::new(-83807, -20052, -8512),
+                Vec3i::new(-77448, 2919, 1270),
+            )
+            .unwrap();
 
             assert!(containing.is_overlapping(&smaller));
             assert!(smaller.is_overlapping(&containing));
@@ -185,7 +201,7 @@ pub mod puzzle {
                     let x = ranges.remove(0);
                     Command {
                         state: state,
-                        bbox: BoundingBox::new(x.low, x.high, y.low, y.high, z.low, z.high)
+                        bbox: BoundingBox::new(x.low, x.high, y.low, y.high, z.low, z.high),
                     }
                 },
             )(input)
@@ -283,31 +299,45 @@ pub mod puzzle {
         }
         pub fn run(input: &str) -> Option<u64> {
             let commands = parser::parse_input(input)?;
-            
-            let mut regions : Vec<Region> = vec![];
+
+            let mut regions: Vec<Region> = vec![];
             for (i, command) in commands.iter().enumerate() {
                 let command_bbox = command.bbox.clone();
 
                 // Remove existing regions which are completely contained by the command bounding box.
-                regions = regions.into_iter().filter(|region| {
-                    let overlapping = region.bbox.overlapping_box(&command_bbox);
-                    // If the overlapping bbox is exactly the region's bbox then it is completely contained.
-                    overlapping.map_or(true, |bbox| bbox != region.bbox)
-                }).collect();
-
-                let intersecting: Vec<Region> = regions.iter().map(|existing| {
-                    existing.bbox.overlapping_box(&command_bbox).map(|overlapping| {
-                        Region { sign: -existing.sign, bbox: overlapping }
+                regions = regions
+                    .into_iter()
+                    .filter(|region| {
+                        let overlapping = region.bbox.overlapping_box(&command_bbox);
+                        // If the overlapping bbox is exactly the region's bbox then it is completely contained.
+                        overlapping.map_or(true, |bbox| bbox != region.bbox)
                     })
-                }).flatten().collect();
+                    .collect();
+
+                let intersecting: Vec<Region> = regions
+                    .iter()
+                    .map(|existing| {
+                        existing
+                            .bbox
+                            .overlapping_box(&command_bbox)
+                            .map(|overlapping| Region {
+                                sign: -existing.sign,
+                                bbox: overlapping,
+                            })
+                    })
+                    .flatten()
+                    .collect();
 
                 for new_region in intersecting.clone() {
                     regions.push(new_region);
                 }
 
                 if command.state == CommandState::ON {
-                    regions.push(Region { sign: 1, bbox: command_bbox });
-                } 
+                    regions.push(Region {
+                        sign: 1,
+                        bbox: command_bbox,
+                    });
+                }
                 println!("Finished command {}, region count {}", i, regions.len());
             }
 
