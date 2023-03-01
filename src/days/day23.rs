@@ -8,8 +8,7 @@
 pub mod puzzle {
     use std::fmt;
 
-
-    #[derive(Hash, PartialOrd, Ord, PartialEq, Eq, Copy, Clone)]
+    #[derive(Hash, PartialOrd, Ord, PartialEq, Eq, Copy, Clone, Debug)]
     pub enum Amphipod {
         A,
         B,
@@ -70,12 +69,91 @@ pub mod puzzle {
                 write!(f, "{}", space)?;
             }
             write!(f, "#\n")?;
-            write!(f, "###{}#{}#{}#{}###\n", self.rooms[0][0], self.rooms[1][0], self.rooms[2][0], self.rooms[3][0])?;
-            write!(f, "  #{}#{}#{}#{}#  \n", self.rooms[0][1], self.rooms[1][1], self.rooms[2][1], self.rooms[3][1])?;
+            write!(
+                f,
+                "###{}#{}#{}#{}###\n",
+                self.rooms[0][0], self.rooms[1][0], self.rooms[2][0], self.rooms[3][0]
+            )?;
+            write!(
+                f,
+                "  #{}#{}#{}#{}#  \n",
+                self.rooms[0][1], self.rooms[1][1], self.rooms[2][1], self.rooms[3][1]
+            )?;
             write!(f, "  #########\n")
         }
     }
+    impl fmt::Debug for BurrowState {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt::Display::fmt(self, f)
+        }
+    }
     impl BurrowState {
+
+        pub(crate) fn to_hallway_moves(&self) -> Vec<(BurrowState, u64)> {
+            let mut acc: Vec<(BurrowState, u64)> = vec![];
+
+            let open_hallway_pos: Vec<usize> = vec![0, 1, 3, 5, 7, 9, 10]
+                .into_iter()
+                .filter(|idx| self.hall[*idx] == SpaceState::Empty)
+                .collect();
+
+            // generate moves from rooms into hallway
+            for room_idx in 0..4 {
+                if let Some((amphipod, pos)) = self.get_from_room(room_idx) {
+                    let room_hall_pos = BurrowState::room_hall_pos(room_idx);
+                    for hallway_pos in &open_hallway_pos {
+                        if self.hall_unoccupied(room_hall_pos, *hallway_pos) {
+                            let mut succ_state = self.clone();
+                            succ_state.rooms[room_idx][pos] = SpaceState::Empty;
+                            succ_state.hall[*hallway_pos] = SpaceState::Occupied(amphipod);
+                            let moves = room_hall_pos.abs_diff(*hallway_pos) + 1 + pos;
+
+                            acc.push((succ_state, moves as u64 * amphipod.move_cost()));
+                        }
+                    }
+                }
+            }
+
+            acc
+        }
+
+        pub(crate) fn from_hallway_moves(&self) -> Vec<(BurrowState, u64)> {
+            let mut acc: Vec<(BurrowState, u64)> = vec![];
+
+            for (hallway_pos, amphipod) in
+                self.hall
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, state)| match state {
+                        SpaceState::Empty => None,
+                        SpaceState::Occupied(amphipod) => Some((i, amphipod)),
+                    })
+            {
+                let destination = amphipod.destination_room();
+                let destination_available = self.rooms[destination].iter().all(|state| {
+                    *state == SpaceState::Empty || *state == SpaceState::Occupied(*amphipod)
+                });
+                let pathable = self.hall_pathable(hallway_pos, BurrowState::room_hall_pos(destination));
+                if destination_available
+                    && self.hall_pathable(hallway_pos, BurrowState::room_hall_pos(destination))
+                {
+                    let pos = self.rooms[destination]
+                        .iter()
+                        .rposition(|state| *state == SpaceState::Empty)
+                        .unwrap();
+
+                    let mut succ_state = self.clone();
+                    succ_state.hall[hallway_pos] = SpaceState::Empty;
+                    succ_state.rooms[destination][pos] = SpaceState::Occupied(*amphipod);
+
+                    let moves = BurrowState::room_hall_pos(destination).abs_diff(hallway_pos) + 1 + pos;
+
+                    acc.push((succ_state, moves as u64 * amphipod.move_cost()))
+                }
+            }
+            acc
+        }
+
         pub fn successors(&self) -> Vec<(BurrowState, u64)> {
             // Rules of moves, states as given are:
             // 1. Amphipods will never stop right outside of a room
@@ -90,57 +168,38 @@ pub mod puzzle {
             // (those spaces can't be ocupied so they're not really necesarry but w/e for now)
 
             // occupiable spaces hall[0,1,3,5,7,9,10]
-            let mut acc: Vec<(BurrowState, u64)> = vec![];
-
-            let open_hallway_pos: Vec<usize> = vec![0,1,3,5,7,9,10].into_iter().filter(|idx| self.hall[*idx] == SpaceState::Empty).collect();
-
-            // generate moves from rooms into hallway
-            for room_idx in 0..4 {
-                if let Some((amphipod, pos)) = self.get_from_room(room_idx) {
-                    let room_hall_pos = BurrowState::room_hall_pos(room_idx);
-                    for hallway_pos in &open_hallway_pos {
-                        if self.hall_unoccupied(room_hall_pos, *hallway_pos) {
-                            let mut succ_state = self.clone();
-                            succ_state.rooms[room_idx][pos] = SpaceState::Empty;
-                            succ_state.hall[*hallway_pos] = SpaceState::Occupied(amphipod);
-                            let moves = room_hall_pos.abs_diff(*hallway_pos) + pos;
-
-                            acc.push((succ_state, moves as u64 * amphipod.move_cost()));
-                        }
-                    }
-                }
-            }
+            
 
             // generate moves from hallway into room
-            for (hallway_pos,amphipod) in self.hall.iter().enumerate().filter_map(|(i,state)| match state { SpaceState::Empty => None, SpaceState::Occupied(amphipod) => Some((i, amphipod))}) {
-                let destination = amphipod.destination_room();
-                let destination_available = self.rooms[destination].iter().all(|state| *state == SpaceState::Empty || *state == SpaceState::Occupied(*amphipod));
-                if destination_available && self.hall_unoccupied(hallway_pos, BurrowState::room_hall_pos(destination)) {
-                    let pos = self.rooms[destination].iter().position(|state| *state == SpaceState::Empty).unwrap();
+            let mut to = self.to_hallway_moves();
+            let mut from = self.from_hallway_moves();
+            
+            to.append(&mut from);
 
-                    let mut succ_state = self.clone();
-                    succ_state.hall[hallway_pos] = SpaceState::Empty;
-                    succ_state.rooms[destination][pos] = SpaceState::Occupied(*amphipod);
-
-                    let moves = BurrowState::room_hall_pos(destination).abs_diff(hallway_pos) + pos;
-
-                    acc.push((succ_state, moves as u64 * amphipod.move_cost()))
-                }
-            }
-
-            acc
+            to
         }
 
         fn room_hall_pos(room_idx: usize) -> usize {
-            room_idx*2 + 2
+            room_idx * 2 + 2
         }
 
         // Is the hall empty from and to indexes, inclusive.
         fn hall_unoccupied(&self, from: usize, to: usize) -> bool {
-            if (from <= to) {
+            if from <= to {
                 (from..=to).all(|idx| self.hall[idx] == SpaceState::Empty)
             } else {
                 (to..=from).all(|idx| self.hall[idx] == SpaceState::Empty)
+            }
+        }
+
+        // Is the hall empty between indexes, EXCLUDING from.
+        // Idea here is that if we're in the hallway we need to exclude our
+        // current location, or we'll always think the way is blocked.
+        fn hall_pathable(&self, from: usize, to: usize) -> bool {
+            if from <= to {
+                (from+1..=to).all(|idx| self.hall[idx] == SpaceState::Empty)
+            } else {
+                (to..=from-1).all(|idx| self.hall[idx] == SpaceState::Empty)
             }
         }
 
@@ -161,14 +220,52 @@ pub mod puzzle {
 
         // Return the movable amphipod and its position in the room if any
         pub(crate) fn get_from_room(&self, room_idx: usize) -> Option<(Amphipod, usize)> {
-            self.rooms[room_idx].iter().enumerate().find_map(|(i, state)| match state { &SpaceState::Empty => None, &SpaceState::Occupied(amphipod) => Some((amphipod, i))})
+            self.rooms[room_idx]
+                .iter()
+                .enumerate()
+                .find_map(|(i, state)| match state {
+                    &SpaceState::Empty => None,
+                    &SpaceState::Occupied(amphipod) => 
+                        if amphipod.destination_room() != room_idx { 
+                            Some((amphipod, i))
+                        } else {
+                            None
+                        },
+                })
+        }
+
+        pub fn heuristic_cost(&self) -> u64 {
+            let mut acc = 0u64;
+            for (i, room) in self.rooms.iter().enumerate() {
+                for (pos, state) in room.iter().enumerate() {
+                    if let SpaceState::Occupied(amphipod) = state {
+                        let curr_pos = BurrowState::room_hall_pos(i);
+                        let dest_pos = BurrowState::room_hall_pos(amphipod.destination_room());
+                        if curr_pos != dest_pos {
+                            let hallway_move = curr_pos.abs_diff(dest_pos) + 1;
+
+                            acc += (hallway_move + pos*2) as u64 * amphipod.move_cost();
+                        }
+                    }
+                }
+            }
+
+            for (i, state) in self.hall.iter().enumerate() {
+                if let SpaceState::Occupied(amphipod) = state {
+                    let curr_pos = i;
+                    let dest_pos = BurrowState::room_hall_pos(amphipod.destination_room());
+                    acc += (curr_pos.abs_diff(dest_pos) + 1) as u64 * amphipod.move_cost();
+                }
+            }
+
+            acc
         }
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
-        
+
         #[test]
         fn test_goal_state() {
             let goal = r#"
@@ -181,16 +278,198 @@ pub mod puzzle {
 
             assert!(parser::parse_input(goal).unwrap().is_goal());
         }
+
+        #[test]
+        fn test_heuristic_cost() {
+let goal = r#"
+#############
+#...........#
+###A#B#C#D###
+  #A#B#C#D#
+  #########
+  
+            "#;
+
+            let example = r#"
+#############
+#...........#
+###B#C#B#D###
+  #A#D#C#A#
+  #########
+            "#;
+
+            let moved = r#"
+#############
+#...B.......#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+            "#;
+
+            assert_eq!(parser::parse_input(goal).unwrap().heuristic_cost(), 0);
+            assert_eq!(parser::parse_input(example).unwrap().heuristic_cost(), 7369);
+            assert_eq!(parser::parse_input(moved).unwrap().heuristic_cost(), 7359);
+        }
+
+        #[test]
+        fn test_from_hallway_moves() {
+            let example = r#"
+#############
+#...B.C.....#
+###B#.#.#D###
+  #A#D#C#A#
+  #########
+            "#;
+
+            let optimal = r#"
+#############
+#...B.......#
+###B#.#C#D###
+  #A#D#C#A#
+  #########
+            "#;
+
+            let moves = parser::parse_input(example).unwrap().from_hallway_moves();
+            let optimal_state = parser::parse_input(optimal).unwrap();
+            assert!(moves.iter().map(|(s,_)| s).find(|s| **s == optimal_state).is_some());
+        }
+
+        #[test]
+        fn test_successor_states() {
+            let example = r#"
+#############
+#...........#
+###B#C#B#D###
+  #A#D#C#A#
+  #########
+            "#;
+
+            let successors_expected = vec![
+                (
+                    r#"
+#############
+#B..........#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    30,
+                ),
+                (
+                    r#"
+#############
+#.B.........#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    20,
+                ),
+                (
+                    r#"
+#############
+#...B.......#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    20,
+                ),
+                (
+                    r#"
+#############
+#.....B.....#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    40,
+                ),
+                (
+                    r#"
+#############
+#.......B...#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    60,
+                ),
+                (
+                    r#"
+#############
+#.........B.#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    80,
+                ),
+                (
+                    r#"
+#############
+#..........B#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    90,
+                ),
+                (
+                    r#"
+#############
+#C..........#
+###B#.#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    500,
+                ),
+(
+                    r#"
+#############
+#.C.........#
+###B#.#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    400,
+                ),
+(
+                    r#"
+#############
+#...C.......#
+###B#.#B#D###
+  #A#D#C#A#
+  #########
+                "#,
+                    200,
+                ),
+
+            ];
+
+            let init = parser::parse_input(example).unwrap();
+            let successors = init.successors();
+            let it = successors_expected
+                .iter()
+                .map(|&(state, cost)| (parser::parse_input(state).unwrap(), cost))
+                .zip(successors.iter());
+
+            for (l, r) in it {
+                assert_eq!(&l, r);
+            }
+        }
     }
     mod parser {
         use super::*;
 
-        fn parse_amphipod(input: char) -> Option<Amphipod> {
+        fn parse_space(input: char) -> Option<SpaceState> {
             match input {
-                'A' => Some(Amphipod::A),
-                'B' => Some(Amphipod::B),
-                'C' => Some(Amphipod::C),
-                'D' => Some(Amphipod::D),
+                'A' => Some(SpaceState::Occupied(Amphipod::A)),
+                'B' => Some(SpaceState::Occupied(Amphipod::B)),
+                'C' => Some(SpaceState::Occupied(Amphipod::C)),
+                'D' => Some(SpaceState::Occupied(Amphipod::D)),
+                '.' => Some(SpaceState::Empty),
                 _ => None,
             }
         }
@@ -204,15 +483,15 @@ pub mod puzzle {
                 } else if space == '#' {
                     ()
                 } else {
-                    hallway.push(SpaceState::Occupied(parse_amphipod(space)?));
+                    hallway.push(parse_space(space)?);
                 }
             }
 
             // 0 becomes rooms[0][0], 4 becomes rooms[0][1], and so on.
             let mut rooms_transposed: Vec<SpaceState> = vec![];
-            for space in (lines[2].to_owned() + lines[3]).chars() {
-                if let Some(amphipod) = parse_amphipod(space) {
-                    rooms_transposed.push(SpaceState::Occupied(amphipod))
+            for chr in (lines[2].to_owned() + lines[3]).chars() {
+                if let Some(space) = parse_space(chr) {
+                    rooms_transposed.push(space)
                 }
             }
 
@@ -232,32 +511,40 @@ pub mod puzzle {
         use super::*;
 
         fn search(initial: BurrowState) -> Option<(BurrowState, u64)> {
-            use std::collections::BinaryHeap;
             use std::cmp::Reverse;
+            use std::collections::BinaryHeap;
 
             let mut q = BinaryHeap::new();
+            let mut counter: usize = 1;
+            let mut last_counter: usize = 0;
 
-            q.push(Reverse((0, initial)));
-            while let Some(Reverse((cost, next))) = q.pop() {
-                //println!("State cost = {}:\n{}", cost, next);
+            q.push(Reverse((initial.heuristic_cost(), 0, initial)));
+            while let Some(Reverse((_, cost, next))) = q.pop() {
                 if next.is_goal() {
+                    println!("Evaluted {} states at completion", counter);
                     return Some((next, cost));
                 }
 
                 for (succ, cost_inc) in next.successors() {
                     if cost + cost_inc <= 100000 {
-                        q.push(Reverse((cost + cost_inc, succ)))
+                        q.push(Reverse((succ.heuristic_cost() + cost + cost_inc, cost + cost_inc, succ.clone())));
+                        counter += 1;
+                        if counter - last_counter >= 100000 {
+                            last_counter = counter;
+                            println!("Evaluated 100k states, at {}, g(n) = {} h(n) = {}", counter, cost + cost_inc, succ.heuristic_cost());
+                            println!("{}", succ);
+                        }
                     }
                 }
             }
 
             // no path found somehow
+            println!("Evaluted {} states at failure", counter);
             return None;
         }
 
         pub fn run(input: &str) -> Option<u64> {
             let initial = parser::parse_input(input)?;
-            println!("{}", initial);
             let (_, energy) = search(initial)?;
             Some(energy)
         }
