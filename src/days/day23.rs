@@ -219,6 +219,10 @@ pub mod puzzle {
         }
 
         // Return the movable amphipod and its position in the room if any
+        // - Can only move if path out is open
+        // - Never move if in destination and not in the way
+        //   - Not in the way if I'm the only one (I should be in 0)
+        //   - So equiv, all in room are in destination
         pub(crate) fn get_from_room(&self, room_idx: usize) -> Option<(Amphipod, usize)> {
             self.rooms[room_idx]
                 .iter()
@@ -226,11 +230,15 @@ pub mod puzzle {
                 .find_map(|(i, state)| match state {
                     &SpaceState::Empty => None,
                     &SpaceState::Occupied(amphipod) => 
-                        if amphipod.destination_room() != room_idx { 
-                            Some((amphipod, i))
-                        } else {
-                            None
-                        },
+                        Some((amphipod, i))
+                })
+                .filter(|(a, i)| {
+                    // are all the amphipods in this room in their destination?
+                    // (this would include the one under investigation)
+                    !self.rooms[room_idx].iter().all(|&s| match s {
+                        SpaceState::Occupied(a) => a.destination_room() == room_idx,
+                        SpaceState::Empty => true,
+                    })
                 })
         }
 
@@ -277,6 +285,36 @@ pub mod puzzle {
             "#;
 
             assert!(parser::parse_input(goal).unwrap().is_goal());
+        }
+
+        #[test]
+        fn test_get_from_room() {
+        let example = r#"
+#############
+#...........#
+###B#C#B#D###
+  #A#D#C#A#
+  #########
+            "#;
+
+        let after_move = r#"
+#############
+#.........D.#
+###B#C#B#.###
+  #A#D#C#A#
+  #########
+            "#;
+        let dont_move_from_home = r#"
+#############
+#...B.......#
+###.#C#B#D###
+  #A#D#C#A#
+  #########
+            "#;
+
+            assert_eq!(parser::parse_input(example).unwrap().get_from_room(3), Some((Amphipod::D, 0)));
+            assert_eq!(parser::parse_input(after_move).unwrap().get_from_room(3), Some((Amphipod::A, 1)));
+            assert_eq!(parser::parse_input(dont_move_from_home).unwrap().get_from_room(0), None);
         }
 
         #[test]
@@ -331,7 +369,7 @@ let goal = r#"
 
             let moves = parser::parse_input(example).unwrap().from_hallway_moves();
             let optimal_state = parser::parse_input(optimal).unwrap();
-            assert!(moves.iter().map(|(s,_)| s).find(|s| **s == optimal_state).is_some());
+            assert!(moves.iter().find(|(s, c)| (s, c) == (&optimal_state, &200)).is_some());
         }
 
         #[test]
@@ -508,6 +546,8 @@ let goal = r#"
     }
 
     pub mod part_one {
+        use std::collections::HashMap;
+
         use super::*;
 
         fn search(initial: BurrowState) -> Option<(BurrowState, u64)> {
@@ -518,22 +558,36 @@ let goal = r#"
             let mut counter: usize = 1;
             let mut last_counter: usize = 0;
 
+            let mut preds: HashMap<BurrowState, BurrowState>= HashMap::new();
+            let mut costs: HashMap<BurrowState, u64>= HashMap::new();
+
             q.push(Reverse((initial.heuristic_cost(), 0, initial)));
             while let Some(Reverse((_, cost, next))) = q.pop() {
                 if next.is_goal() {
                     println!("Evaluted {} states at completion", counter);
+
+                    let mut s = &next;
+                    while let Some(state) = preds.get(s) {
+                        println!("{}", s);
+                        s = state;
+                    }
                     return Some((next, cost));
                 }
 
                 for (succ, cost_inc) in next.successors() {
-                    if cost + cost_inc <= 100000 {
-                        q.push(Reverse((succ.heuristic_cost() + cost + cost_inc, cost + cost_inc, succ.clone())));
-                        counter += 1;
-                        if counter - last_counter >= 100000 {
-                            last_counter = counter;
-                            println!("Evaluated 100k states, at {}, g(n) = {} h(n) = {}", counter, cost + cost_inc, succ.heuristic_cost());
-                            println!("{}", succ);
-                        }
+                    let new_cost = cost + cost_inc;
+                    q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ.clone())));
+                    
+                    // my bookkeeping here isn't quite correct, but that's okay since it's for reporting, not correctness
+                    let updated_cost = costs.entry(succ.clone()).and_modify(|e| { *e = new_cost.min(*e) }).or_insert(new_cost);
+                    if *updated_cost == new_cost {
+                        preds.insert(succ.clone(), next.clone());
+                    }
+                    counter += 1;
+                    if counter - last_counter >= 100000 {
+                        last_counter = counter;
+                        println!("Evaluated 100k states, at {}, g(n) = {} h(n) = {}", counter, cost + cost_inc, succ.heuristic_cost());
+                        println!("{}", succ);
                     }
                 }
             }
