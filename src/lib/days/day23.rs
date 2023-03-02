@@ -6,7 +6,7 @@
 
 // This smells like a classic implicit graph search problem, so we'll attack it with more or less Dijkstra's algorithm.
 pub mod puzzle {
-    use std::{fmt, collections::HashMap};
+    use std::{collections::HashMap, fmt};
 
     #[derive(Hash, PartialOrd, Ord, PartialEq, Eq, Copy, Clone, Debug)]
     pub enum Amphipod {
@@ -85,7 +85,6 @@ pub mod puzzle {
         }
     }
     impl BurrowState {
-
         pub(crate) fn to_hallway_moves(&self) -> Vec<(BurrowState, u64)> {
             let mut acc: Vec<(BurrowState, u64)> = vec![];
 
@@ -130,7 +129,8 @@ pub mod puzzle {
                 let destination_available = self.rooms[destination].iter().all(|state| {
                     *state == SpaceState::Empty || *state == SpaceState::Occupied(*amphipod)
                 });
-                let pathable = self.hall_pathable(hallway_pos, BurrowState::room_hall_pos(destination));
+                let pathable =
+                    self.hall_pathable(hallway_pos, BurrowState::room_hall_pos(destination));
                 if destination_available
                     && self.hall_pathable(hallway_pos, BurrowState::room_hall_pos(destination))
                 {
@@ -143,7 +143,8 @@ pub mod puzzle {
                     succ_state.hall[hallway_pos] = SpaceState::Empty;
                     succ_state.rooms[destination][pos] = SpaceState::Occupied(*amphipod);
 
-                    let moves = BurrowState::room_hall_pos(destination).abs_diff(hallway_pos) + 1 + pos;
+                    let moves =
+                        BurrowState::room_hall_pos(destination).abs_diff(hallway_pos) + 1 + pos;
 
                     acc.push((succ_state, moves as u64 * amphipod.move_cost()))
                 }
@@ -165,12 +166,11 @@ pub mod puzzle {
             // (those spaces can't be ocupied so they're not really necesarry but w/e for now)
 
             // occupiable spaces hall[0,1,3,5,7,9,10]
-            
 
             // generate moves from hallway into room
             let mut to = self.to_hallway_moves();
             let mut from = self.from_hallway_moves();
-            
+
             to.append(&mut from);
 
             to
@@ -194,9 +194,9 @@ pub mod puzzle {
         // current location, or we'll always think the way is blocked.
         fn hall_pathable(&self, from: usize, to: usize) -> bool {
             if from <= to {
-                (from+1..=to).all(|idx| self.hall[idx] == SpaceState::Empty)
+                (from + 1..=to).all(|idx| self.hall[idx] == SpaceState::Empty)
             } else {
-                (to..=from-1).all(|idx| self.hall[idx] == SpaceState::Empty)
+                (to..=from - 1).all(|idx| self.hall[idx] == SpaceState::Empty)
             }
         }
 
@@ -226,8 +226,7 @@ pub mod puzzle {
                 .enumerate()
                 .find_map(|(i, state)| match state {
                     &SpaceState::Empty => None,
-                    &SpaceState::Occupied(amphipod) => 
-                        Some((amphipod, i))
+                    &SpaceState::Occupied(amphipod) => Some((amphipod, i)),
                 })
                 .filter(|(a, i)| {
                     // are all the amphipods in this room in their destination?
@@ -253,7 +252,7 @@ pub mod puzzle {
                         if curr_pos != dest_pos || should_move {
                             let hallway_move = curr_pos.abs_diff(dest_pos) + 1;
 
-                            acc += (hallway_move + pos*2) as u64 * amphipod.move_cost();
+                            acc += (hallway_move + pos * 2) as u64 * amphipod.move_cost();
                         }
                     }
                 }
@@ -275,7 +274,7 @@ pub mod puzzle {
     mod tests {
         use itertools::Itertools;
 
-        use super::{*, parser::parse_input};
+        use super::{parser::parse_input, *};
 
         #[test]
         fn test_goal_state() {
@@ -292,7 +291,7 @@ pub mod puzzle {
 
         #[test]
         fn test_get_from_room() {
-        let example = r#"
+            let example = r#"
 #############
 #...........#
 ###B#C#B#D###
@@ -300,14 +299,14 @@ pub mod puzzle {
   #########
             "#;
 
-        let after_move = r#"
+            let after_move = r#"
 #############
 #.........D.#
 ###B#C#B#.###
   #A#D#C#A#
   #########
             "#;
-        let dont_move_from_home = r#"
+            let dont_move_from_home = r#"
 #############
 #...B.......#
 ###.#C#B#D###
@@ -315,14 +314,25 @@ pub mod puzzle {
   #########
             "#;
 
-            assert_eq!(parser::parse_input(example).unwrap().get_from_room(3), Some((Amphipod::D, 0)));
-            assert_eq!(parser::parse_input(after_move).unwrap().get_from_room(3), Some((Amphipod::A, 1)));
-            assert_eq!(parser::parse_input(dont_move_from_home).unwrap().get_from_room(0), None);
+            assert_eq!(
+                parser::parse_input(example).unwrap().get_from_room(3),
+                Some((Amphipod::D, 0))
+            );
+            assert_eq!(
+                parser::parse_input(after_move).unwrap().get_from_room(3),
+                Some((Amphipod::A, 1))
+            );
+            assert_eq!(
+                parser::parse_input(dont_move_from_home)
+                    .unwrap()
+                    .get_from_room(0),
+                None
+            );
         }
 
         #[test]
         fn test_heuristic_cost() {
-let goal = r#"
+            let goal = r#"
 #############
 #...........#
 ###A#B#C#D###
@@ -357,50 +367,53 @@ let goal = r#"
             let next_state = parse_input(next).unwrap();
 
             let successors = input_state.successors();
-            assert!(input_state.successors().iter().find(|&(s, _)| *s == next_state).is_some());
+            assert!(input_state
+                .successors()
+                .iter()
+                .find(|&(s, _)| *s == next_state)
+                .is_some());
             successors.len()
         }
-        
+
         #[test]
         fn test_successor_examples() {
             // First state ripped out of test run, extrapolated to goal
             let sequence = vec![
-r#"
+                r#"
 #############
 #D........D.#
 ###A#B#.#.###
   #A#B#C#C#
   #########
             "#,
-r#"
+                r#"
 #############
 #D......C.D.#
 ###A#B#.#.###
   #A#B#C#.#
   #########
             "#,
-r#"
+                r#"
 #############
 #D........D.#
 ###A#B#C#.###
   #A#B#C#.#
   #########
             "#,
-r#"
+                r#"
 #############
 #D..........#
 ###A#B#C#.###
   #A#B#C#D#
   #########
             "#,
-r#"
+                r#"
 #############
 #...........#
 ###A#B#C#D###
   #A#B#C#D#
   #########
             "#,
-
             ];
 
             let mut all_successors = 0;
@@ -430,7 +443,10 @@ r#"
 
             let moves = parser::parse_input(example).unwrap().from_hallway_moves();
             let optimal_state = parser::parse_input(optimal).unwrap();
-            assert!(moves.iter().find(|(s, c)| (s, c) == (&optimal_state, &200)).is_some());
+            assert!(moves
+                .iter()
+                .find(|(s, c)| (s, c) == (&optimal_state, &200))
+                .is_some());
         }
     }
     mod parser {
@@ -489,7 +505,7 @@ r#"
 
             state.rooms[1].insert(1, SpaceState::Occupied(Amphipod::B));
             state.rooms[1].insert(1, SpaceState::Occupied(Amphipod::C));
-            
+
             state.rooms[2].insert(1, SpaceState::Occupied(Amphipod::A));
             state.rooms[2].insert(1, SpaceState::Occupied(Amphipod::B));
 
@@ -507,13 +523,11 @@ r#"
         let mut counter: usize = 1;
         let mut last_counter: usize = 0;
 
-
-
         q.push(Reverse((initial.heuristic_cost(), 0, initial)));
         while let Some(Reverse((_, cost, next))) = q.pop() {
             if next.is_goal() {
                 println!("Evaluted {} states at completion", counter);
-                
+
                 return Some((next, cost));
             }
 
@@ -529,11 +543,15 @@ r#"
                     dist.insert(succ.clone(), new_cost);
                     q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ)));
                 }
-                
+
                 counter += 1;
                 if counter - last_counter >= 100000 {
                     last_counter = counter;
-                    println!("Evaluated 100k states, at {}, h(n) + g(n) = {}", counter, cost + next.heuristic_cost());
+                    println!(
+                        "Evaluated 100k states, at {}, h(n) + g(n) = {}",
+                        counter,
+                        cost + next.heuristic_cost()
+                    );
                     if let Some(Reverse((h, c, _))) = q.peek() {
                         println!("Next state h(n) + g(n) = {}", h);
                     }
