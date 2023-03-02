@@ -72,7 +72,7 @@ pub mod puzzle {
             for i in 0..self.rooms[0].len() {
                 write!(
                     f,
-                    "###{}#{}#{}#{}###\n",
+                    "  #{}#{}#{}#{}#  \n",
                     self.rooms[0][i], self.rooms[1][i], self.rooms[2][i], self.rooms[3][i]
                 )?;
             }
@@ -484,17 +484,17 @@ r#"
             //   #D#C#B#A#
             //   #D#B#A#C#
 
-            state.rooms[0].insert(0, SpaceState::Occupied(Amphipod::D));
-            state.rooms[0].insert(0, SpaceState::Occupied(Amphipod::D));
+            state.rooms[0].insert(1, SpaceState::Occupied(Amphipod::D));
+            state.rooms[0].insert(1, SpaceState::Occupied(Amphipod::D));
 
-            state.rooms[1].insert(0, SpaceState::Occupied(Amphipod::B));
-            state.rooms[1].insert(0, SpaceState::Occupied(Amphipod::C));
+            state.rooms[1].insert(1, SpaceState::Occupied(Amphipod::B));
+            state.rooms[1].insert(1, SpaceState::Occupied(Amphipod::C));
             
-            state.rooms[2].insert(0, SpaceState::Occupied(Amphipod::A));
-            state.rooms[2].insert(0, SpaceState::Occupied(Amphipod::B));
+            state.rooms[2].insert(1, SpaceState::Occupied(Amphipod::A));
+            state.rooms[2].insert(1, SpaceState::Occupied(Amphipod::B));
 
-            state.rooms[3].insert(0, SpaceState::Occupied(Amphipod::C));
-            state.rooms[3].insert(0, SpaceState::Occupied(Amphipod::A));
+            state.rooms[3].insert(1, SpaceState::Occupied(Amphipod::C));
+            state.rooms[3].insert(1, SpaceState::Occupied(Amphipod::A));
         }
     }
 
@@ -552,6 +552,7 @@ r#"
         pub fn run(input: &str) -> Option<u64> {
             let mut initial = parser::parse_input(input)?;
             parser::mangle_to_part_two(&mut initial);
+            println!("Initial\n {}", initial);
             let (_, energy) = search(initial)?;
             Some(energy)
         }
