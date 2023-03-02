@@ -249,7 +249,11 @@ pub mod puzzle {
                     if let SpaceState::Occupied(amphipod) = state {
                         let curr_pos = BurrowState::room_hall_pos(i);
                         let dest_pos = BurrowState::room_hall_pos(amphipod.destination_room());
-                        if curr_pos != dest_pos {
+                        let should_move = !self.rooms[i].iter().all(|&s| match s {
+                            SpaceState::Occupied(a) => a.destination_room() == i,
+                            SpaceState::Empty => true,
+                        });
+                        if curr_pos != dest_pos || should_move {
                             let hallway_move = curr_pos.abs_diff(dest_pos) + 1;
 
                             acc += (hallway_move + pos*2) as u64 * amphipod.move_cost();
@@ -272,7 +276,9 @@ pub mod puzzle {
 
     #[cfg(test)]
     mod tests {
-        use super::*;
+        use itertools::Itertools;
+
+        use super::{*, parser::parse_input};
 
         #[test]
         fn test_goal_state() {
@@ -349,6 +355,64 @@ let goal = r#"
             assert_eq!(parser::parse_input(moved).unwrap().heuristic_cost(), 7359);
         }
 
+        fn aux_test_successors_contains(input: &str, next: &str) -> usize {
+            let input_state = parse_input(input).unwrap();
+            let next_state = parse_input(next).unwrap();
+
+            let successors = input_state.successors();
+            assert!(input_state.successors().iter().find(|&(s, _)| *s == next_state).is_some());
+            successors.len()
+        }
+        
+        #[test]
+        fn test_successor_examples() {
+            // First state ripped out of test run, extrapolated to goal
+            let sequence = vec![
+r#"
+#############
+#D........D.#
+###A#B#.#.###
+  #A#B#C#C#
+  #########
+            "#,
+r#"
+#############
+#D......C.D.#
+###A#B#.#.###
+  #A#B#C#.#
+  #########
+            "#,
+r#"
+#############
+#D........D.#
+###A#B#C#.###
+  #A#B#C#.#
+  #########
+            "#,
+r#"
+#############
+#D..........#
+###A#B#C#.###
+  #A#B#C#D#
+  #########
+            "#,
+r#"
+#############
+#...........#
+###A#B#C#D###
+  #A#B#C#D#
+  #########
+            "#,
+
+            ];
+
+            let mut all_successors = 0;
+            for (state, desired_next) in sequence.iter().tuple_windows() {
+                all_successors += aux_test_successors_contains(state, desired_next);
+            }
+            println!("Added {} states", all_successors);
+        }
+
         #[test]
         fn test_from_hallway_moves() {
             let example = r#"
@@ -370,132 +434,6 @@ let goal = r#"
             let moves = parser::parse_input(example).unwrap().from_hallway_moves();
             let optimal_state = parser::parse_input(optimal).unwrap();
             assert!(moves.iter().find(|(s, c)| (s, c) == (&optimal_state, &200)).is_some());
-        }
-
-        #[test]
-        fn test_successor_states() {
-            let example = r#"
-#############
-#...........#
-###B#C#B#D###
-  #A#D#C#A#
-  #########
-            "#;
-
-            let successors_expected = vec![
-                (
-                    r#"
-#############
-#B..........#
-###.#C#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    30,
-                ),
-                (
-                    r#"
-#############
-#.B.........#
-###.#C#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    20,
-                ),
-                (
-                    r#"
-#############
-#...B.......#
-###.#C#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    20,
-                ),
-                (
-                    r#"
-#############
-#.....B.....#
-###.#C#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    40,
-                ),
-                (
-                    r#"
-#############
-#.......B...#
-###.#C#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    60,
-                ),
-                (
-                    r#"
-#############
-#.........B.#
-###.#C#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    80,
-                ),
-                (
-                    r#"
-#############
-#..........B#
-###.#C#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    90,
-                ),
-                (
-                    r#"
-#############
-#C..........#
-###B#.#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    500,
-                ),
-(
-                    r#"
-#############
-#.C.........#
-###B#.#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    400,
-                ),
-(
-                    r#"
-#############
-#...C.......#
-###B#.#B#D###
-  #A#D#C#A#
-  #########
-                "#,
-                    200,
-                ),
-
-            ];
-
-            let init = parser::parse_input(example).unwrap();
-            let successors = init.successors();
-            let it = successors_expected
-                .iter()
-                .map(|&(state, cost)| (parser::parse_input(state).unwrap(), cost))
-                .zip(successors.iter());
-
-            for (l, r) in it {
-                assert_eq!(&l, r);
-            }
         }
     }
     mod parser {
@@ -568,7 +506,7 @@ let goal = r#"
 
                     let mut s = &next;
                     while let Some(state) = preds.get(s) {
-                        println!("{}", s);
+                        //println!("{}", s);
                         s = state;
                     }
                     return Some((next, cost));
@@ -586,8 +524,11 @@ let goal = r#"
                     counter += 1;
                     if counter - last_counter >= 100000 {
                         last_counter = counter;
-                        println!("Evaluated 100k states, at {}, g(n) = {} h(n) = {}", counter, cost + cost_inc, succ.heuristic_cost());
-                        println!("{}", succ);
+                        println!("Evaluated 100k states, at {}, h(n) + g(n) = {}", counter, cost + next.heuristic_cost());
+                        if let Some(Reverse((h, c, _))) = q.peek() {
+                            println!("Next state h(n) + g(n) = {}", h);
+                        }
+                        println!("{}", next);
                     }
                 }
             }
