@@ -496,31 +496,19 @@ r#"
             let mut counter: usize = 1;
             let mut last_counter: usize = 0;
 
-            let mut preds: HashMap<BurrowState, BurrowState>= HashMap::new();
-            let mut costs: HashMap<BurrowState, u64>= HashMap::new();
 
             q.push(Reverse((initial.heuristic_cost(), 0, initial)));
             while let Some(Reverse((_, cost, next))) = q.pop() {
                 if next.is_goal() {
                     println!("Evaluted {} states at completion", counter);
-
-                    let mut s = &next;
-                    while let Some(state) = preds.get(s) {
-                        //println!("{}", s);
-                        s = state;
-                    }
+                    
                     return Some((next, cost));
                 }
 
                 for (succ, cost_inc) in next.successors() {
                     let new_cost = cost + cost_inc;
-                    q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ.clone())));
+                    q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ)));
                     
-                    // my bookkeeping here isn't quite correct, but that's okay since it's for reporting, not correctness
-                    let updated_cost = costs.entry(succ.clone()).and_modify(|e| { *e = new_cost.min(*e) }).or_insert(new_cost);
-                    if *updated_cost == new_cost {
-                        preds.insert(succ.clone(), next.clone());
-                    }
                     counter += 1;
                     if counter - last_counter >= 100000 {
                         last_counter = counter;
