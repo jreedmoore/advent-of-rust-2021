@@ -6,7 +6,7 @@
 
 // This smells like a classic implicit graph search problem, so we'll attack it with more or less Dijkstra's algorithm.
 pub mod puzzle {
-    use std::fmt;
+    use std::{fmt, collections::HashMap};
 
     #[derive(Hash, PartialOrd, Ord, PartialEq, Eq, Copy, Clone, Debug)]
     pub enum Amphipod {
@@ -503,8 +503,10 @@ r#"
         use std::collections::BinaryHeap;
 
         let mut q = BinaryHeap::new();
+        let mut dist: HashMap<BurrowState, u64> = HashMap::new();
         let mut counter: usize = 1;
         let mut last_counter: usize = 0;
+
 
 
         q.push(Reverse((initial.heuristic_cost(), 0, initial)));
@@ -517,7 +519,16 @@ r#"
 
             for (succ, cost_inc) in next.successors() {
                 let new_cost = cost + cost_inc;
-                q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ)));
+                if let Some(old_cost) = dist.get(&succ) {
+                    if *old_cost > new_cost {
+                        dist.insert(succ.clone(), new_cost);
+                        q.retain(|Reverse((_, _, s))| *s != succ);
+                        q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ)));
+                    }
+                } else {
+                    dist.insert(succ.clone(), new_cost);
+                    q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ)));
+                }
                 
                 counter += 1;
                 if counter - last_counter >= 100000 {

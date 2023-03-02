@@ -1,4 +1,5 @@
 #![feature(hash_drain_filter)]
+#![feature(binary_heap_retain)]
 mod days;
 mod util;
 use days::*;
