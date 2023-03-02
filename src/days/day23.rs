@@ -69,16 +69,13 @@ pub mod puzzle {
                 write!(f, "{}", space)?;
             }
             write!(f, "#\n")?;
-            write!(
-                f,
-                "###{}#{}#{}#{}###\n",
-                self.rooms[0][0], self.rooms[1][0], self.rooms[2][0], self.rooms[3][0]
-            )?;
-            write!(
-                f,
-                "  #{}#{}#{}#{}#  \n",
-                self.rooms[0][1], self.rooms[1][1], self.rooms[2][1], self.rooms[3][1]
-            )?;
+            for i in 0..self.rooms[0].len() {
+                write!(
+                    f,
+                    "###{}#{}#{}#{}###\n",
+                    self.rooms[0][i], self.rooms[1][i], self.rooms[2][i], self.rooms[3][i]
+                )?;
+            }
             write!(f, "  #########\n")
         }
     }
@@ -481,53 +478,80 @@ r#"
                 hall: hallway,
             })
         }
+
+        pub fn mangle_to_part_two(state: &mut BurrowState) {
+            // insert this
+            //   #D#C#B#A#
+            //   #D#B#A#C#
+
+            state.rooms[0].insert(0, SpaceState::Occupied(Amphipod::D));
+            state.rooms[0].insert(0, SpaceState::Occupied(Amphipod::D));
+
+            state.rooms[1].insert(0, SpaceState::Occupied(Amphipod::B));
+            state.rooms[1].insert(0, SpaceState::Occupied(Amphipod::C));
+            
+            state.rooms[2].insert(0, SpaceState::Occupied(Amphipod::A));
+            state.rooms[2].insert(0, SpaceState::Occupied(Amphipod::B));
+
+            state.rooms[3].insert(0, SpaceState::Occupied(Amphipod::C));
+            state.rooms[3].insert(0, SpaceState::Occupied(Amphipod::A));
+        }
+    }
+
+    fn search(initial: BurrowState) -> Option<(BurrowState, u64)> {
+        use std::cmp::Reverse;
+        use std::collections::BinaryHeap;
+
+        let mut q = BinaryHeap::new();
+        let mut counter: usize = 1;
+        let mut last_counter: usize = 0;
+
+
+        q.push(Reverse((initial.heuristic_cost(), 0, initial)));
+        while let Some(Reverse((_, cost, next))) = q.pop() {
+            if next.is_goal() {
+                println!("Evaluted {} states at completion", counter);
+                
+                return Some((next, cost));
+            }
+
+            for (succ, cost_inc) in next.successors() {
+                let new_cost = cost + cost_inc;
+                q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ)));
+                
+                counter += 1;
+                if counter - last_counter >= 100000 {
+                    last_counter = counter;
+                    println!("Evaluated 100k states, at {}, h(n) + g(n) = {}", counter, cost + next.heuristic_cost());
+                    if let Some(Reverse((h, c, _))) = q.peek() {
+                        println!("Next state h(n) + g(n) = {}", h);
+                    }
+                    println!("{}", next);
+                }
+            }
+        }
+
+        // no path found somehow
+        println!("Evaluted {} states at failure", counter);
+        return None;
     }
 
     pub mod part_one {
-        use std::collections::HashMap;
-
         use super::*;
-
-        fn search(initial: BurrowState) -> Option<(BurrowState, u64)> {
-            use std::cmp::Reverse;
-            use std::collections::BinaryHeap;
-
-            let mut q = BinaryHeap::new();
-            let mut counter: usize = 1;
-            let mut last_counter: usize = 0;
-
-
-            q.push(Reverse((initial.heuristic_cost(), 0, initial)));
-            while let Some(Reverse((_, cost, next))) = q.pop() {
-                if next.is_goal() {
-                    println!("Evaluted {} states at completion", counter);
-                    
-                    return Some((next, cost));
-                }
-
-                for (succ, cost_inc) in next.successors() {
-                    let new_cost = cost + cost_inc;
-                    q.push(Reverse((succ.heuristic_cost() + new_cost, new_cost, succ)));
-                    
-                    counter += 1;
-                    if counter - last_counter >= 100000 {
-                        last_counter = counter;
-                        println!("Evaluated 100k states, at {}, h(n) + g(n) = {}", counter, cost + next.heuristic_cost());
-                        if let Some(Reverse((h, c, _))) = q.peek() {
-                            println!("Next state h(n) + g(n) = {}", h);
-                        }
-                        println!("{}", next);
-                    }
-                }
-            }
-
-            // no path found somehow
-            println!("Evaluted {} states at failure", counter);
-            return None;
-        }
 
         pub fn run(input: &str) -> Option<u64> {
             let initial = parser::parse_input(input)?;
+            let (_, energy) = search(initial)?;
+            Some(energy)
+        }
+    }
+
+    pub mod part_two {
+        use super::*;
+
+        pub fn run(input: &str) -> Option<u64> {
+            let mut initial = parser::parse_input(input)?;
+            parser::mangle_to_part_two(&mut initial);
             let (_, energy) = search(initial)?;
             Some(energy)
         }
@@ -549,5 +573,18 @@ mod tests {
         "#;
 
         assert_eq!(puzzle::part_one::run(example), Some(12521))
+    }
+
+    #[test]
+    fn test_part_two_example() {
+        let example = r#"
+#############
+#...........#
+###B#C#B#D###
+  #A#D#C#A#
+  #########
+        "#;
+
+        assert_eq!(puzzle::part_two::run(example), Some(44169))
     }
 }
