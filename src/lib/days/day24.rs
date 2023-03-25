@@ -1,4 +1,6 @@
 pub mod puzzle {
+    use itertools::Itertools;
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum Var {
         X,
@@ -59,10 +61,7 @@ pub mod puzzle {
             digits.reverse();
             for instr in instrs {
                 match instr {
-                    Instruction::Input(l) => {
-                        println!("input, z = {}", self.z);
-                        *self.select_reg(l) = digits.pop().unwrap()
-                    }
+                    Instruction::Input(l) => *self.select_reg(l) = digits.pop().unwrap(),
                     Instruction::Add(l, r) => self.binop(l, r, |a, b| a + b),
                     Instruction::Mul(l, r) => self.binop(l, r, |a, b| a * b),
                     Instruction::Div(l, r) => self.binop(l, r, |a, b| a / b),
@@ -94,8 +93,16 @@ pub mod puzzle {
         let mut z = 0;
 
         for (i, SectionParam { a, b, c }) in params.iter().enumerate() {
-            println!("Emulated z = {} ({},{},{}) d={}", z, a, b, c, digits[i]);
             z = emulate_section(*a, *b, *c, digits[i], z);
+            let mut b26 = vec![];
+            let mut working_z = z;
+            while working_z != 0 {
+                b26.push(working_z % 26);
+                working_z = working_z / 26;
+            }
+            b26.reverse();
+            let b26s = b26.iter().map(|e| e.to_string()).join(",");
+            println!("{}: Emulated z = {} ({},{},{}) d={}, d'={}", i, b26s, a, b, c, digits[i], (z % 26) + b);
         }
 
         z

@@ -19,7 +19,14 @@ fn main() {
     let (eliminated, bindings) = ssa::eliminate_constants(&ssa, state);
     println!("eliminated.len() = {}", eliminated.len());
 
-    let digits = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5];
+    let mut d = 13621111481315;
+    let mut digits = vec![];
+    while d != 0 {
+        digits.push(d % 10);
+        d = d / 10;
+    }
+    digits.reverse();
+    //let digits = vec![5,9,9,9,8,4,2,6,9,9,7,9,7,9];
     let mut alu = ALU::new();
     alu.run(&instrs, digits.clone());
     let alu_res = alu.z;
