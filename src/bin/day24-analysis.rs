@@ -27,9 +27,6 @@ fn main() {
 
     println!("ALU {} EMU {}", alu_res, emu_res);
     println!("params.len() = {}", params.len());
-    for param in params {
-        println!("{:?}", param)
-    }
 
     //let tree = tree::from_eliminated_ssa(&ssa, &ssa::Bindings::new());
     let mut dot = File::create("day24.dot").unwrap();

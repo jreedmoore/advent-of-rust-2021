@@ -36,9 +36,6 @@ pub mod puzzle {
             }
         }
         fn select_reg(&mut self, r: &Var) -> &mut i64 {
-            if *r == Var::X {
-                println!("Accessing ALU.z {}", self.z);
-            }
             match r {
                 Var::X => &mut self.x,
                 Var::Y => &mut self.y,
@@ -62,7 +59,10 @@ pub mod puzzle {
             digits.reverse();
             for instr in instrs {
                 match instr {
-                    Instruction::Input(l) => *self.select_reg(l) = digits.pop().unwrap(),
+                    Instruction::Input(l) => {
+                        println!("input, z = {}", self.z);
+                        *self.select_reg(l) = digits.pop().unwrap()
+                    }
                     Instruction::Add(l, r) => self.binop(l, r, |a, b| a + b),
                     Instruction::Mul(l, r) => self.binop(l, r, |a, b| a * b),
                     Instruction::Div(l, r) => self.binop(l, r, |a, b| a / b),
@@ -87,13 +87,14 @@ pub mod puzzle {
     fn emulate_section(a: i64, b: i64, c: i64, d: i64, z: i64) -> i64 {
         let nz = z / a;
         let cmp = if (z % 26 + b) == d { 0 } else { 1 };
-        (26 * cmp + 1) * nz + (c + d) * cmp
+        ((25 * cmp) + 1) * nz + (c + d) * cmp
     }
 
     pub fn emulate_sections(digits: &[i64], params: &[SectionParam]) -> i64 {
         let mut z = 0;
 
         for (i, SectionParam { a, b, c }) in params.iter().enumerate() {
+            println!("Emulated z = {} ({},{},{}) d={}", z, a, b, c, digits[i]);
             z = emulate_section(*a, *b, *c, digits[i], z);
         }
 
@@ -110,6 +111,12 @@ pub mod puzzle {
             alu.run(&instrs, digits);
 
             alu.z
+        }
+
+        #[test]
+        fn test_emulation() {
+            assert_eq!(emulate_section(1, 13, 8, 1, 0), 9);
+            assert_eq!(emulate_section(1, 12, 13, 2, 9), 249)
         }
 
         #[test]
@@ -755,9 +762,6 @@ add z y
             }
 
             pub fn add(&mut self, v: Val, constant: Constant) {
-                if v.name == Name::X && v.index == 11 {
-                    println!("add(X11, {:?})", constant);
-                }
                 self.b.insert(v, constant);
             }
 
@@ -880,7 +884,7 @@ add z y
 
             fn aux_eval(input: &str) -> (Vec<Instruction>, Bindings) {
                 let straightline = parser::parse_input(input).unwrap();
-                let (ssa, index_state) = from_straightline(straightline);
+                let (ssa, index_state) = from_straightline(&straightline);
                 eliminate_constants(&ssa, index_state)
             }
             #[test]
@@ -897,9 +901,6 @@ add z y
                 );
                 assert_eq!(aux_eliminate("inp w\nadd x w\nmul x 0").len(), 2);
                 let (_, b) = aux_eval("inp w\nadd x w\neql x 13");
-                for (k, v) in b.b.iter() {
-                    println!("{:?} {:?}", k, v);
-                }
                 assert_eq!(aux_eliminate("inp w\nadd x w\neql x 13").len(), 2);
             }
 
@@ -1125,7 +1126,6 @@ add z y
         }
 
         fn get_constant(input: &str) -> Option<i64> {
-            println!("get_constant({})", input);
             input.split(" ").last().map(|i| i.parse().ok()).flatten()
         }
 
