@@ -122,6 +122,19 @@ impl<T> Grid<T> {
         row * self.width() + col
     }
 
+    fn wrapped_index(&self, row: usize, col: usize) -> usize {
+        self.index(row % self.height(), col % self.width())
+    }
+
+    pub fn wrapped_get(&self, row: usize, col: usize) -> &T {
+        &self.storage[self.wrapped_index(row, col)]
+    }
+
+    pub fn wrapped_get_mut(&mut self, row: usize, col: usize) -> &mut T {
+        let idx = self.wrapped_index(row, col);
+        &mut self.storage[idx]
+    }
+
     pub fn get(&self, row: usize, col: usize) -> Option<&T> {
         if self.in_bounds(row, col) {
             Some(&self.storage[self.index(row, col)])
@@ -164,6 +177,13 @@ impl<T: Clone> Grid<T> {
         Grid {
             storage: data,
             ncols: ncols,
+        }
+    }
+
+    pub fn empty() -> Grid<T> {
+        Grid {
+            storage: vec![],
+            ncols: 0,
         }
     }
 }
@@ -248,6 +268,20 @@ mod tests {
             vec![false, false, false],
             vec![false, false, false],
         ]));
+    }
+
+    #[test]
+    fn test_wrapped_get() {
+        let grid = Grid::from_rows(vec![
+            vec![false, false, false],
+            vec![false, false, false],
+            vec![false, false, false],
+        ]);
+
+        grid.wrapped_get(2, 2);
+        grid.wrapped_get(2, 3);
+        grid.wrapped_get(3, 3);
+        grid.wrapped_get(4, 4);
     }
 
     #[test]

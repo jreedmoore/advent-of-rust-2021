@@ -102,7 +102,16 @@ pub mod puzzle {
             }
             b26.reverse();
             let b26s = b26.iter().map(|e| e.to_string()).join(",");
-            println!("{}: Emulated z = {} ({},{},{}) d={}, d'={}", i, b26s, a, b, c, digits[i], (z % 26) + b);
+            println!(
+                "{}: Emulated z = {} ({},{},{}) d={}, d'={}",
+                i,
+                b26s,
+                a,
+                b,
+                c,
+                digits[i],
+                (z % 26) + b
+            );
         }
 
         z
